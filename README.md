@@ -87,11 +87,76 @@ ablakban követhető, mit végez.
 Ha az adott célkönyvtárban idegen fájl van Git-klón helyett, a művelet leáll,
 nem írja felül automatikusan.
 
+
+## Prémium szürkés-kék felület és ablakkezelés
+
+- Prémium acélkék/sötétszürke kártyás megjelenés, világos kék gombokkal.
+- **Minden kártyán Frissítési előzmények:** a projekt valós magyar `CHANGELOG.md` naplója, illetve
+  ennek hiányában a Git commitok magyar nyelvű összefoglalója. A verzió,
+  dátum és az eredeti fejlesztői bejegyzés ellenőrizhető GitHub-adatból származik.
+  Ha a projekt adott bejegyzéshez nem adott ki verziószámot, **Git-azonosító** jelenik meg,
+  nem kitalált verzió. A hiányzó dátumot is külön jelezzük.
+- **Ikon csere:** kattints a programkártya bal felső ikonjára, válassz PNG/JPG/WEBP/BMP képet.
+  A kép négyzetes PNG-másolata megmarad az
+  `~/.local/share/across32-launcher/icons/` alatt, így újraindításkor is látszik.
+  **Jobb kattintással** visszaállítható a gyári jelzés. Az ikonkép változtatása
+  csak a Launcher kártyájára vonatkozik, a másik program saját KDE-ikonjára nem.
+- **TÁLCÁRA:** ha a rendszer támogatja, elrejti az ablakot a KDE rendszertálcájára;
+  a tálcaikon menüjében **Megnyitás** és **Teljes bezárás** használható.
+  Ha nincs rendszertálca, normál KDE minimalizálás történik a feladatsorra.
+  A hagyományos ablakminimalizálás is működik.
+- A címsor **X / Bezárás** gombja ténylegesen kilép, nem hagy rejtett alkalmazást
+  a tálcán. A program természetes Linux-ablak dekorációját nem cseréljük le.
+
+## GitHub Backup – csak a privát repók
+
+A fejlécben található **⬇ GITHUB BACKUP** gomb az Across32 fiók elérhető
+**privát** GitHub-repóit menti az alábbi mappába:
+
+```text
+/Volumes/Data/Github backup/
+```
+
+Minden repóhoz pontosan két, állandó nevű adatmentés tartozik:
+
+```text
+Across32__relief.git/       # teljes, bare Git-tükör / commit- és ágtörténet
+Across32__relief.bundle     # önálló, ellenőrzött Git bundle
+```
+
+A többi repónál is ugyanez a névkonvenció. A mentés nem a programok
+munkamappáinak adatbázisait vagy helyi, nem követett fájljait menti, hanem a GitHubon
+tárolt repository teljes elérhető Git-történetét és ágait.
+
+**Működés:**
+1. `gh` hitelesítéssel lekéri az Across32 privát repóit.
+2. A GitHubról egy ideiglenes friss **`git clone --mirror`** tükör készül.
+3. `git fsck`, `git bundle create --all` és `git bundle verify` ellenőrzi a mentést.
+4. **Csak sikeres ellenőrzés után** cseréli le az adott repó korábbi fix nevű
+   tükrét és bundle fájlját. Hiba esetén az előző, sikeresen elkészített mentés marad.
+5. A `backup-status.json` tartalmazza az utolsó futás időpontját,
+   a mentett Git-revíziókat és az esetleges hibás repókat.
+
+Ugyanarra a repóra **nem készülnek dátummal megsokszorozott mentésfájlok**.
+A program külön Konsole ablakban jelzi a műveletet; a végén Enterrel zárhatod.
+A célmappában már meglévő, más elnevezésű, ismeretlen tartalmú fájlokhoz nem nyúl.
+
+A mentéshez telepítve kell lennie a `git`, `github-cli` (`gh`) és a
+`konsole` parancsnak, valamint szükséges a GitHub-fiók hitelesítése:
+
+```bash
+sudo pacman -S --needed git github-cli konsole
+gh auth login
+```
+
+**Fontos:** a `/Volumes/Data` csatolási pontnak már elérhetőnek kell lennie
+a mentés indítása előtt; nem hozzuk létre automatikusan a hiányzó csatolási pontot.
+
 ## 5. Tesztek
 
 ```bash
 python -m unittest discover -s tests -v
-python -m compileall -q app_manager.py launcher.py
+python -m compileall -q app_manager.py launcher.py release_history.py app_icons.py github_backup.py
 QT_QPA_PLATFORM=offscreen .venv/bin/python launcher.py
 ```
 
