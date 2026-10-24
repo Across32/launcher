@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 from PySide6.QtCore import QSize
 from PySide6.QtGui import QColor, QImage
+from PySide6.QtWidgets import QApplication
 
 import app_icons
 import github_backup as backup
@@ -16,6 +17,10 @@ from app_manager import BY_KEY
 
 
 class NewFeatureTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.qt_app = QApplication.instance() or QApplication([])
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
