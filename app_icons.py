@@ -2,13 +2,14 @@
 from __future__ import annotations
 
 import os
+import configparser
 from pathlib import Path
 import tempfile
 
 from PySide6.QtCore import QSize, Qt
-from PySide6.QtGui import QImageReader
+from PySide6.QtGui import QIcon, QImageReader
 
-from app_manager import App, data_home
+from app_manager import App, data_home, desktop_entries
 
 
 def icons_dir() -> Path:
@@ -55,3 +56,31 @@ def save_icon(app: App, chosen_file: str) -> Path:
 
 def delete_icon(app: App) -> None:
     icon_path(app).unlink(missing_ok=True)
+
+
+def fallback_icon(app: App) -> QIcon:
+    """Prefer the actual KDE app icon, then a desktop theme icon."""
+    for entry in desktop_entries(app):
+        try:
+            parser = configparser.ConfigParser(interpolation=None, strict=False)
+            parser.optionxform = str
+            parser.read(entry, encoding="utf-8")
+            name = parser["Desktop Entry"].get("Icon", "").strip()
+        except (OSError, KeyError, configparser.Error):
+            continue
+        if not name:
+            continue
+        icon = QIcon(name) if Path(name).is_absolute() else QIcon.fromTheme(name)
+        if not icon.isNull():
+            return icon
+    return QIcon.fromTheme(app.icon)
+
+
+def selected_icon(app: App) -> QIcon:
+    """Custom icon wins; it is stable across restarts and launcher updates."""
+    custom = icon_path(app)
+    if custom.is_file():
+        icon = QIcon(str(custom))
+        if not icon.isNull():
+            return icon
+    return fallback_icon(app)
