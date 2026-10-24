@@ -1,0 +1,37 @@
+name: Launcher tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install test dependencies
+        run: python -m pip install 'PySide6>=6.7,<7'
+      - name: Compile
+        run: python -m compileall -q app_manager.py launcher.py tests
+      - name: Unit tests
+        run: python -m unittest discover -s tests -v
+      - name: Offscreen UI smoke
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          python - <<'PY'
+          from PySide6.QtWidgets import QApplication
+          from launcher import Launcher
+          from app_manager import APPS
+          app = QApplication([])
+          window = Launcher()
+          assert len(APPS) == 6
+          assert window.grid.count() == 6
+          assert "Across32" in window.windowTitle()
+          window.close()
+          print("Launcher UI: OK")
+          PY
