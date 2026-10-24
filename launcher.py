@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
 )
 
 from app_manager import APPS, App, installed, open_application, repo_url, revision, version
-from app_icons import delete_icon, icon_path, save_icon
+from app_icons import delete_icon, save_icon, selected_icon
 
 
 STYLE = """
@@ -173,11 +173,11 @@ class AppCard(QFrame):
         icon.setCursor(Qt.CursorShape.PointingHandCursor)
         icon.setToolTip("Kattints az ikon cseréjéhez. Jobb kattintás: alaphelyzet.")
         icon.setStyleSheet(f"QPushButton#appIcon {{ background: {spec.color}; }}")
-        chosen_icon = icon_path(spec)
-        if chosen_icon.is_file():
+        chosen_icon = selected_icon(spec)
+        if not chosen_icon.isNull():
             icon.setText("")
-            icon.setIcon(QIcon(str(chosen_icon)))
-            icon.setIconSize(QSize(47, 47))
+            icon.setIcon(chosen_icon)
+            icon.setIconSize(QSize(43, 43))
         icon.clicked.connect(lambda: parent.choose_icon(spec))
         icon.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         icon.customContextMenuRequested.connect(lambda _pos: parent.reset_icon(spec))
