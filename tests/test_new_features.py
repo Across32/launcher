@@ -71,8 +71,8 @@ class NewFeatureTests(unittest.TestCase):
             desktop = self.root / "applications"
             desktop.mkdir()
             (desktop / "laser-studio.desktop").write_text(
-                "[Desktop Entry]\\nType=Application\\n"
-                f"Icon={icon_file}\\nExec=/usr/bin/python3\\n",
+                "[Desktop Entry]\nType=Application\n"
+                f"Icon={icon_file}\nExec=/usr/bin/python3\n",
                 encoding="utf-8",
             )
             icon = app_icons.selected_icon(BY_KEY["laser"])
