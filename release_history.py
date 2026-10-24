@@ -7,6 +7,7 @@ when no numbered release exists.
 from __future__ import annotations
 
 import base64
+import json
 from dataclasses import dataclass
 from datetime import datetime
 import json
@@ -238,3 +239,25 @@ def load_history(app: App) -> tuple[list[Update], str]:
         "Ellenőrizd az internetkapcsolatot és privát repóknál a 'gh auth login' bejelentkezést."
         + (f"\nRészletek: {details}" if details else "")
     )
+
+
+def main() -> int:
+    import argparse
+    from dataclasses import asdict
+    import sys
+    from app_manager import BY_KEY
+    parser = argparse.ArgumentParser(description="Magyar GitHub frissítési előzmények")
+    parser.add_argument("repo", choices=tuple(BY_KEY))
+    args = parser.parse_args()
+    try:
+        entries, note = load_history(BY_KEY[args.repo])
+        print(json.dumps({"items": [asdict(item) for item in entries], "note": note},
+                         ensure_ascii=False))
+        return 0
+    except Exception as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
