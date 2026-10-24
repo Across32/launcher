@@ -62,6 +62,22 @@ class NewFeatureTests(unittest.TestCase):
             app_icons.delete_icon(spec)
             self.assertFalse(installed.exists())
 
+    def test_default_icon_uses_existing_kde_icon(self):
+        with patch.dict(os.environ, {"XDG_DATA_HOME": str(self.root)}):
+            icon_file = self.root / "actual-app-icon.png"
+            image = QImage(48, 48, QImage.Format.Format_ARGB32)
+            image.fill(QColor("#6888ad"))
+            self.assertTrue(image.save(str(icon_file), "PNG"))
+            desktop = self.root / "applications"
+            desktop.mkdir()
+            (desktop / "laser-studio.desktop").write_text(
+                "[Desktop Entry]\\nType=Application\\n"
+                f"Icon={icon_file}\\nExec=/usr/bin/python3\\n",
+                encoding="utf-8",
+            )
+            icon = app_icons.selected_icon(BY_KEY["laser"])
+            self.assertFalse(icon.isNull())
+
     def test_invalid_icon_does_not_replace_existing(self):
         with patch.dict(os.environ, {"XDG_DATA_HOME": str(self.root)}):
             spec = BY_KEY["relief"]
