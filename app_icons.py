@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 import tempfile
 
-from PySide6.QtCore import QSize
+from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QImageReader
 
 from app_manager import App, data_home
@@ -33,8 +33,9 @@ def save_icon(app: App, chosen_file: str) -> Path:
     if dimensions.isValid() and (dimensions.width() > 12000 or dimensions.height() > 12000):
         raise ValueError("Az ikon képmérete túl nagy (maximum 12000 pixel oldalanként).")
     if dimensions.isValid():
-        dimensions.scale(QSize(256, 256))
-        reader.setScaledSize(dimensions)
+        if dimensions.width() > 256 or dimensions.height() > 256:
+            dimensions = dimensions.scaled(QSize(256, 256), Qt.AspectRatioMode.KeepAspectRatio)
+            reader.setScaledSize(dimensions)
     image = reader.read()
     if image.isNull():
         raise ValueError("Nem sikerült feldolgozni a képet: " + reader.errorString())
