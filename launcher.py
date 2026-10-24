@@ -3,116 +3,145 @@
 from __future__ import annotations
 
 from pathlib import Path
+import json
 import shlex
 import shutil
 import sys
 import webbrowser
 
-from PySide6.QtCore import Qt, QProcess, QTimer, QUrl
-from PySide6.QtGui import QDesktopServices, QFont
+from PySide6.QtCore import Qt, QSize, QProcess, QTimer, QUrl
+from PySide6.QtGui import QDesktopServices, QIcon, QPixmap
 from PySide6.QtWidgets import (
-    QApplication, QComboBox, QFrame, QGridLayout, QHBoxLayout, QLabel,
-    QLineEdit, QMainWindow, QMessageBox, QPushButton, QScrollArea,
-    QSizePolicy, QVBoxLayout, QWidget,
+    QApplication, QComboBox, QDialog, QFileDialog, QFrame, QGridLayout,
+    QHBoxLayout, QLabel, QLineEdit, QMainWindow, QMenu, QMessageBox,
+    QPushButton, QScrollArea, QSizePolicy, QSystemTrayIcon, QVBoxLayout, QWidget,
 )
 
-from app_manager import APPS, App, installed, open_application, repo_url, revision, source_dir, version
+from app_manager import APPS, App, installed, open_application, repo_url, revision, version
+from app_icons import delete_icon, icon_path, save_icon
 
 
 STYLE = """
+* { font-family: 'Noto Sans', 'DejaVu Sans', sans-serif; }
 QMainWindow, QWidget#root, QScrollArea, QWidget#gridWidget {
-    background: #f5f5f3;
-    color: #17181c;
+    background: #202b39;
+    color: #e4eaf2;
 }
 QFrame#header {
-    background: #ffffff;
-    border-bottom: 1px solid #dadbdd;
+    background: #151f2d;
+    border-bottom: 1px solid #3e536b;
 }
 QLabel#brand {
-    color: #101114;
-    font-size: 23px;
+    color: #eff5fd;
+    font-size: 25px;
     font-weight: 900;
-    letter-spacing: 1px;
-}
-QLabel#micro {
-    color: #84868b;
-    font-size: 11px;
-    font-weight: 700;
     letter-spacing: 2px;
 }
-QLabel#summary {
-    color: #70747a;
-    font-size: 13px;
+QLabel#micro {
+    color: #89a9c7;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+}
+QLabel#summary, QLabel#footer {
+    color: #a0b3c8;
+    font-size: 12px;
 }
 QFrame#card {
-    background: #ffffff;
-    border: 1px solid #d9dbdd;
-    border-radius: 8px;
+    background: #29384a;
+    border: 1px solid #40566e;
+    border-radius: 13px;
 }
-QLabel#appName {
-    font-size: 21px;
-    color: #101115;
-    font-weight: 800;
-}
-QLabel#category {
-    font-size: 12px;
-    color: #70757b;
-}
-QLabel#description {
-    font-size: 13px;
-    color: #4d5259;
-}
-QLabel#status {
-    font-size: 11px;
-    font-weight: 700;
-}
-QLabel#version {
-    color: #94969b;
-    font-size: 11px;
-}
+QLabel#appName { color: #eff5fc; font-size: 20px; font-weight: 800; }
+QLabel#category { color: #b0c0d1; font-size: 12px; }
+QLabel#description { color: #c7d5e3; font-size: 13px; }
+QLabel#status { font-size: 11px; font-weight: 700; }
+QLabel#version { color: #95abc1; font-size: 11px; }
 QLineEdit, QComboBox {
-    background: #fff;
-    border: 1px solid #d2d3d5;
-    border-radius: 4px;
-    color: #252629;
-    min-height: 33px;
+    background: #324458;
+    color: #f4f8fe;
+    border: 1px solid #536b83;
+    border-radius: 6px;
+    min-height: 35px;
     padding: 2px 9px;
+    selection-background-color: #567b9f;
 }
 QPushButton {
-    border-radius: 4px;
-    font-size: 12px;
+    border-radius: 6px;
+    font-size: 11px;
     font-weight: 800;
-    min-height: 33px;
-    padding: 0px 12px;
+    min-height: 34px;
+    padding: 0px 11px;
 }
 QPushButton#primary {
-    color: white;
-    background: #15161a;
-    border: 1px solid #15161a;
+    color: #fff;
+    background: #537da6;
+    border: 1px solid #638db6;
 }
-QPushButton#primary:hover { background: #383c45; }
+QPushButton#primary:hover { background: #638fb8; }
 QPushButton#secondary {
-    color: #25272c;
-    background: #f9f9fa;
-    border: 1px solid #cfd0d3;
+    color: #dbe8f4;
+    background: #33485f;
+    border: 1px solid #57718c;
 }
-QPushButton#secondary:hover { background: #eaecef; }
-QPushButton#secondary:disabled { color: #a3a6ac; background: #f2f3f4; }
+QPushButton#secondary:hover { background: #425d7a; }
+QPushButton#secondary:disabled, QPushButton#primary:disabled {
+    color: #8699ac; background: #2b3a4b; border-color: #3a4d60;
+}
+QPushButton#history {
+    color: #b6d1eb;
+    background: #243648;
+    border: 1px solid #496179;
+    text-align: center;
+}
+QPushButton#history:hover { background: #37516b; color: white; }
 QPushButton#link {
     background: transparent;
     border: 0;
-    color: #62666b;
-    font-size: 11px;
+    color: #a3bdd7;
+    font-size: 10px;
     letter-spacing: 1px;
 }
-QPushButton#link:hover { color: #246db8; }
-QPushButton#refresh {
-    color: #25282e;
-    background: #fff;
-    border: 1px solid #cfd0d3;
-    font-size: 16px;
+QPushButton#link:hover { color: #f1f7ff; }
+QPushButton#refresh, QPushButton#tray {
+    color: #d8e9f7;
+    background: #2c4158;
+    border: 1px solid #4c6680;
+    font-size: 13px;
 }
+QPushButton#refresh:hover, QPushButton#tray:hover { background: #3c5874; }
+QPushButton#appIcon {
+    color: #f8fbfe;
+    font-weight: 900;
+    font-size: 24px;
+    border-radius: 10px;
+    border: 1px solid #7494b3;
+    padding: 0;
+}
+QPushButton#backup {
+    color: #eff8ff;
+    background: #3b658c;
+    border: 1px solid #6c95bd;
+    font-size: 11px;
+}
+QPushButton#backup:hover { background: #4c7eaa; }
+QPushButton#backup:disabled { background: #35475a; color: #7d96ae; }
+QDialog#historyDialog, QDialog#historyDialog QScrollArea,
+QDialog#historyDialog QWidget#historyContent {
+    background: #1e2c3b;
+    color: #e9f1f8;
+}
+QFrame#historyCard {
+    background: #2a3d51;
+    border: 1px solid #48617b;
+    border-radius: 8px;
+}
+QLabel#historyTitle { color: #f0f6fc; font-size: 16px; font-weight: 800; }
+QLabel#historyDate { color: #92bce3; font-size: 12px; font-weight: 700; }
+QLabel#historyDetail { color: #c7d6e6; font-size: 12px; }
+QMessageBox, QFileDialog { background: #243449; color: #e7eef6; }
 """
+
 
 
 class AppCard(QFrame):
@@ -120,7 +149,7 @@ class AppCard(QFrame):
         super().__init__()
         self.setObjectName("card")
         self.setMinimumWidth(310)
-        self.setMinimumHeight(268)
+        self.setMinimumHeight(323)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         outer = QVBoxLayout(self)
         outer.setContentsMargins(18, 14, 18, 16)
@@ -138,13 +167,20 @@ class AppCard(QFrame):
         outer.addLayout(top)
 
         title_row = QHBoxLayout()
-        icon = QLabel(spec.letter)
-        icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        icon.setFixedSize(51, 51)
-        icon.setStyleSheet(
-            f"background:{spec.color};color:white;border-radius:11px;"
-            "font-weight:900;font-size:27px;"
-        )
+        icon = QPushButton(spec.letter)
+        icon.setObjectName("appIcon")
+        icon.setFixedSize(55, 55)
+        icon.setCursor(Qt.CursorShape.PointingHandCursor)
+        icon.setToolTip("Kattints az ikon cseréjéhez. Jobb kattintás: alaphelyzet.")
+        icon.setStyleSheet(f"QPushButton#appIcon {{ background: {spec.color}; }}")
+        chosen_icon = icon_path(spec)
+        if chosen_icon.is_file():
+            icon.setText("")
+            icon.setIcon(QIcon(str(chosen_icon)))
+            icon.setIconSize(QSize(47, 47))
+        icon.clicked.connect(lambda: parent.choose_icon(spec))
+        icon.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        icon.customContextMenuRequested.connect(lambda _pos: parent.reset_icon(spec))
         title_row.addWidget(icon)
         text_col = QVBoxLayout()
         text_col.setSpacing(1)
@@ -166,8 +202,8 @@ class AppCard(QFrame):
         badge = QLabel("●  FOLYAMATBAN" if busy else
                        ("●  TELEPÍTVE" if active else "○  NINCS TELEPÍTVE"))
         badge.setObjectName("status")
-        badge.setStyleSheet("color: #bc813b;" if busy else
-                            ("color: #278068;" if active else "color: #777b81;"))
+        badge.setStyleSheet("color: #ffd18c;" if busy else
+                            ("color: #80d5b3;" if active else "color: #a6b5c5;"))
         outer.addWidget(badge)
 
         local_version = version(spec)
@@ -200,6 +236,109 @@ class AppCard(QFrame):
             install_button.clicked.connect(lambda: parent.operation(spec, "install"))
             actions.addWidget(install_button)
         outer.addLayout(actions)
+        history = QPushButton("◷  FRISSÍTÉSI ELŐZMÉNYEK")
+        history.setObjectName("history")
+        history.setToolTip("Valódi GitHub-kiadások és változások magyar nyelven")
+        history.clicked.connect(lambda: parent.show_history(spec))
+        outer.addWidget(history)
+
+
+
+class HistoryDialog(QDialog):
+    """Responsive, scrollable, real-source history; no UI blocking on GitHub."""
+    def __init__(self, spec: App, parent: "Launcher"):
+        super().__init__(parent)
+        self.spec = spec
+        self.setObjectName("historyDialog")
+        self.setWindowTitle(f"{spec.title} – Frissítési előzmények")
+        self.resize(790, 690)
+        self.setMinimumSize(540, 410)
+        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        self.layout_root = QVBoxLayout(self)
+        self.layout_root.setContentsMargins(20, 18, 20, 18)
+        title = QLabel(f"{spec.title} – Frissítési előzmények")
+        title.setObjectName("historyTitle")
+        self.layout_root.addWidget(title)
+        self.note = QLabel("Valódi GitHub-adatok betöltése…")
+        self.note.setObjectName("historyDetail")
+        self.note.setWordWrap(True)
+        self.layout_root.addWidget(self.note)
+        self.scroll = QScrollArea()
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self.content = QWidget()
+        self.content.setObjectName("historyContent")
+        self.entries_layout = QVBoxLayout(self.content)
+        self.entries_layout.setContentsMargins(0, 7, 8, 12)
+        self.entries_layout.setSpacing(12)
+        self.scroll.setWidget(self.content)
+        self.layout_root.addWidget(self.scroll)
+        close_button = QPushButton("BEZÁRÁS")
+        close_button.setObjectName("secondary")
+        close_button.clicked.connect(self.close)
+        self.layout_root.addWidget(close_button)
+
+        self.worker = QProcess(self)
+        self.worker.setProgram(sys.executable)
+        self.worker.setArguments([
+            str(Path(__file__).resolve().parent / "release_history.py"), spec.key
+        ])
+        self.worker.finished.connect(self.completed)
+        self.worker.errorOccurred.connect(self.process_error)
+        self.worker.start()
+
+    def process_error(self, _error):
+        if self.worker.state() == QProcess.ProcessState.NotRunning:
+            self.note.setText("Nem sikerült elindítani a frissítési előzmények lekérését.")
+
+    def completed(self, code, _status):
+        if code:
+            error = bytes(self.worker.readAllStandardError()).decode("utf-8", "replace").strip()
+            self.note.setText("Hiba az előzmények lekérésekor: " + (error or "Ismeretlen hiba"))
+            return
+        try:
+            output = json.loads(bytes(self.worker.readAllStandardOutput()).decode("utf-8"))
+            items = output["items"]
+        except (ValueError, KeyError, TypeError) as exc:
+            self.note.setText(f"Az előzmények értelmezése sikertelen: {exc}")
+            return
+        self.note.setText(output.get("note", ""))
+        if not items:
+            self.entries_layout.addWidget(QLabel("Nincs elérhető változásbejegyzés."))
+            return
+        for item in items:
+            card = QFrame()
+            card.setObjectName("historyCard")
+            block = QVBoxLayout(card)
+            block.setContentsMargins(15, 13, 15, 14)
+            block.setSpacing(7)
+            first = QHBoxLayout()
+            version = QLabel(item["version"])
+            version.setObjectName("historyTitle")
+            first.addWidget(version)
+            first.addStretch()
+            date = QLabel(item["date"])
+            date.setObjectName("historyDate")
+            first.addWidget(date)
+            block.addLayout(first)
+            heading = QLabel(item["title"])
+            heading.setObjectName("historyDetail")
+            heading.setWordWrap(True)
+            block.addWidget(heading)
+            details = QLabel(item["description"])
+            details.setObjectName("historyDetail")
+            details.setTextFormat(Qt.TextFormat.PlainText)
+            details.setWordWrap(True)
+            details.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            block.addWidget(details)
+            self.entries_layout.addWidget(card)
+        self.entries_layout.addStretch(1)
+
+    def closeEvent(self, event):
+        if self.worker.state() != QProcess.ProcessState.NotRunning:
+            self.worker.kill()
+            self.worker.waitForFinished(3000)
+        super().closeEvent(event)
 
 
 class Launcher(QMainWindow):
@@ -209,6 +348,10 @@ class Launcher(QMainWindow):
         self.setMinimumSize(940, 640)
         self.resize(1280, 795)
         self.running: dict[str, QProcess] = {}
+        self.backup_process = None
+        self.histories = []
+        self.tray = None
+        self.setup_tray()
 
         root = QWidget()
         root.setObjectName("root")
@@ -231,6 +374,16 @@ class Launcher(QMainWindow):
         subtitle.setObjectName("micro")
         head.addWidget(subtitle)
         head.addStretch()
+        self.backup_button = QPushButton("⬇  GITHUB BACKUP")
+        self.backup_button.setObjectName("backup")
+        self.backup_button.setToolTip("Privát Across32 GitHub repók biztonsági mentése Git-tükör és bundle fájl formájában")
+        self.backup_button.clicked.connect(self.start_backup)
+        head.addWidget(self.backup_button)
+        tray_button = QPushButton("TÁLCÁRA")
+        tray_button.setObjectName("tray")
+        tray_button.setToolTip("Az ablak minimalizálása; elérhető rendszertálcán is, ha támogatott")
+        tray_button.clicked.connect(self.minimize_to_tray)
+        head.addWidget(tray_button)
         refresh = QPushButton("↻")
         refresh.setObjectName("refresh")
         refresh.setFixedSize(40, 36)
@@ -274,7 +427,7 @@ class Launcher(QMainWindow):
             "  A telepítés és frissítés GitHub-forrásból történik. "
             "A hitelesítéshez és a rendszerjogosultságokhoz Konsole ablak nyílik meg.  "
         )
-        self.footer.setObjectName("summary")
+        self.footer.setObjectName("footer")
         self.footer.setContentsMargins(24, 10, 16, 12)
         layout.addWidget(self.footer)
         self.timer = QTimer(self)
@@ -282,6 +435,132 @@ class Launcher(QMainWindow):
         self.timer.timeout.connect(self.refresh_if_running)
         self.timer.start()
         self.refresh()
+
+
+    def setup_tray(self):
+        if not QSystemTrayIcon.isSystemTrayAvailable():
+            return
+        tray = QSystemTrayIcon(self)
+        icon_file = Path(__file__).resolve().parent / "assets/across32-launcher.svg"
+        icon = QIcon(str(icon_file))
+        if icon.isNull():
+            icon = QIcon.fromTheme("applications-system")
+        tray.setIcon(icon)
+        tray.setToolTip("Across32 – Alkalmazáskezelő")
+        menu = QMenu(self)
+        show_action = menu.addAction("Megnyitás")
+        show_action.triggered.connect(self.restore_from_tray)
+        minimize_action = menu.addAction("Minimalizálás")
+        minimize_action.triggered.connect(self.showMinimized)
+        menu.addSeparator()
+        quit_action = menu.addAction("Teljes bezárás")
+        quit_action.triggered.connect(self.close)
+        tray.setContextMenu(menu)
+        tray.activated.connect(
+            lambda reason: self.restore_from_tray()
+            if reason == QSystemTrayIcon.ActivationReason.Trigger else None
+        )
+        tray.show()
+        self.tray = tray
+
+    def minimize_to_tray(self):
+        if self.tray is not None and self.tray.isVisible():
+            self.hide()
+        else:
+            # KDE's ordinary taskbar is still available even without a tray.
+            self.showMinimized()
+
+    def restore_from_tray(self):
+        self.showNormal()
+        self.raise_()
+        self.activateWindow()
+
+    def closeEvent(self, event):
+        # Closing X is a REAL exit, never an implicit minimize-to-tray.
+        for dlg in list(self.histories):
+            dlg.close()
+        if self.tray:
+            self.tray.hide()
+        if self.backup_process and self.backup_process.state() != QProcess.ProcessState.NotRunning:
+            # The Konsole backup terminal is an independent user process.
+            self.backup_process.setParent(None)
+        for process in self.running.values():
+            if process.state() != QProcess.ProcessState.NotRunning:
+                process.setParent(None)
+        event.accept()
+        QApplication.quit()
+
+    def choose_icon(self, spec: App):
+        path, _filter = QFileDialog.getOpenFileName(
+            self, f"{spec.title} – új ikon kiválasztása", str(Path.home()),
+            "Képfájlok (*.png *.jpg *.jpeg *.webp *.bmp *.gif *.tif *.tiff);;Minden fájl (*)",
+        )
+        if not path:
+            return
+        try:
+            save_icon(spec, path)
+            self.refresh()
+        except (OSError, ValueError) as exc:
+            QMessageBox.warning(self, "Ikon nem menthető", str(exc))
+
+    def reset_icon(self, spec: App):
+        try:
+            delete_icon(spec)
+            self.refresh()
+        except OSError as exc:
+            QMessageBox.warning(self, "Ikon visszaállítása", str(exc))
+
+    def show_history(self, spec: App):
+        dialog = HistoryDialog(spec, self)
+        self.histories.append(dialog)
+        dialog.destroyed.connect(lambda _obj=None, dlg=dialog: self.remove_history(dlg))
+        dialog.show()
+
+    def remove_history(self, dialog):
+        if dialog in self.histories:
+            self.histories.remove(dialog)
+
+    def start_backup(self):
+        if self.backup_process is not None:
+            return
+        if not shutil.which("konsole"):
+            QMessageBox.warning(self, "Hiányzó Konsole", "A mentéshez Konsole szükséges.")
+            return
+        backup_file = Path(__file__).resolve().parent / "github_backup.py"
+        command = shlex.join([sys.executable, str(backup_file)])
+        shell = (
+            f"{command}; status=$?; "
+            "printf '\\n--- GitHub Backup vége (kilépési kód: %s) ---\\n' \"$status\"; "
+            "printf 'Enter: ablak bezárása...'; read -r _; exit \"$status\""
+        )
+        process = QProcess(self)
+        process.setProgram("konsole")
+        process.setArguments(["--title", "Across32 – GitHub Backup",
+                              "-e", "bash", "-c", shell])
+        process.finished.connect(self.backup_finished)
+        process.errorOccurred.connect(self.backup_error)
+        self.backup_process = process
+        self.backup_button.setEnabled(False)
+        self.backup_button.setText("MENTÉS FOLYAMATBAN…")
+        process.start()
+
+    def backup_error(self, _error):
+        if self.backup_process is not None and self.backup_process.state() == QProcess.ProcessState.NotRunning:
+            message = self.backup_process.errorString()
+            self.backup_process = None
+            self.backup_button.setEnabled(True)
+            self.backup_button.setText("⬇  GITHUB BACKUP")
+            QMessageBox.warning(self, "Backup indítási hiba", message)
+
+    def backup_finished(self, code, _status):
+        self.backup_process = None
+        self.backup_button.setEnabled(True)
+        self.backup_button.setText("⬇  GITHUB BACKUP")
+        if code:
+            QMessageBox.warning(self, "GitHub Backup",
+                                "A mentés nem minden repónál sikerült. "
+                                "A korábbi sikeres mentések megmaradtak. "
+                                "A részleteket a Konsole ablak mutatta.")
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
@@ -384,6 +663,7 @@ class Launcher(QMainWindow):
 def main() -> int:
     app = QApplication(sys.argv)
     app.setApplicationName("Across32 Launcher")
+    app.setQuitOnLastWindowClosed(False)
     app.setStyleSheet(STYLE)
     window = Launcher()
     window.show()
