@@ -20,7 +20,7 @@ jobs:
           python -m pip install 'PySide6-Essentials>=6.7,<7'
       - name: Compile and validate shell scripts
         run: |
-          python -m compileall -q app_manager.py launcher.py tests
+          python -m compileall -q app_manager.py launcher.py app_icons.py release_history.py github_backup.py tests
           bash -n install.sh run.sh
       - name: Unit tests
         run: python -m unittest discover -s tests -v
@@ -37,6 +37,13 @@ jobs:
           assert len(APPS) == 6
           assert window.grid.count() == 6
           assert "Across32" in window.windowTitle()
+          assert window.backup_button.text().endswith("GITHUB BACKUP")
+          from PySide6.QtWidgets import QPushButton
+          cards = [window.grid.itemAt(i).widget() for i in range(window.grid.count())]
+          assert sum(bool(card.findChildren(QPushButton, "appIcon")) for card in cards) == 6
+          assert sum(bool(card.findChildren(QPushButton, "history")) for card in cards) == 6
+          window.minimize_to_tray()
+          window.restore_from_tray()
           window.close()
           print("Launcher UI: OK")
           PY
