@@ -9,6 +9,7 @@ if ! command -v pacman >/dev/null 2>&1; then
 fi
 need_packages=()
 command -v git >/dev/null 2>&1 || need_packages+=(git)
+command -v gh >/dev/null 2>&1 || need_packages+=(github-cli)
 command -v python3 >/dev/null 2>&1 || need_packages+=(python)
 command -v konsole >/dev/null 2>&1 || need_packages+=(konsole)
 if (("${#need_packages[@]}" > 0)); then
