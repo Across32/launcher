@@ -18,7 +18,7 @@ fi
 
 python3 -m venv "$ROOT/.venv"
 "$ROOT/.venv/bin/python" -m pip install --upgrade 'pip>=24'
-"$ROOT/.venv/bin/python" -m pip install 'PySide6>=6.7,<7'
+"$ROOT/.venv/bin/python" -m pip install 'PySide6-Essentials>=6.7,<7'
 
 desktop_dir="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
 mkdir -p "$desktop_dir"
