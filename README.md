@@ -1,6 +1,6 @@
 # Across32 Launcher – EndeavourOS / KDE Plasma
 
-Grafikus, magyar nyelvű alkalmazáskezelő az Across32 GitHub-fiók hat projektjéhez.
+Grafikus, magyar nyelvű alkalmazáskezelő az Across32 GitHub-fiók hét projektjéhez.
 A felület külön kártyán jeleníti meg az alkalmazást, a rövid leírást, a helyi verziót és Git-revíziót,
 valamint a **Telepítés / Megnyitás / Frissítés** gombokat.
 
@@ -12,6 +12,7 @@ valamint a **Telepítés / Megnyitás / Frissítés** gombokat.
 | Laser Studio | `laser` | Lézergravírozási CAM és G-kód |
 | Tankolás | `tankolas` | Tankolás, fogyasztás és szerviz |
 | Gázfogyasztás | `gas` | Gázfogyasztás és rezsiköltségek |
+| Across Player – Lejátszó | `player` | Magyar nyelvű 4K/Full HD videólejátszó (mpv, feliratok, hangsávok) |
 
 ## 1. A launcher telepítése
 
@@ -55,6 +56,8 @@ hogy a Git klónozás a GitHub CLI hitelesítését használhassa.
 
 - **Telepítés:** a megfelelő GitHub repót klónozza, majd a projekt saját, meglévő `install.sh`
   (Filmadatbázisnál `install_kde_menu.sh`) telepítőjét futtatja.
+  Az **Across Player** kivétel: a rendszer saját `/usr/bin/python` + `pyside6` és `mpv`
+  csomagjait használja. A launcher ezeket szükség esetén `pacman` segítségével telepíti.
 - **Frissítés:** csak helyes Across32 Git-origin és módosítatlan követett fájlok esetén
   `git pull --ff-only origin main`, majd újra lefuttatja a projekt telepítőjét.
 - **Megnyitás:** lehetőség szerint a már létező KDE `.desktop` indítóparancsot használja.
@@ -83,6 +86,15 @@ a projekt saját előírásai alapján **/Volumes/Data** alatt tartja az adatait
 A launcher nem töröl adatbázist és nem futtat `git reset --hard` parancsot.
 Mindegyik alkalmazás telepítője eltérő rendszerfüggőségeket telepíthet; a Konsole
 ablakban követhető, mit végez.
+
+Az **Across Player** korábbi Git-klónja a `~/.local/share/across-player/` mappából
+is felismerhető. Ha a lejátszó más helyre került, a telepített
+`~/.local/bin/across-player` indítóban szereplő `player.py` útvonalból is
+felismeri az eredeti klónt. A KDE menüben **Across Player** néven jelenik meg.
+A **Megnyitás**, **Frissítés**, **Frissítési előzmények**, saját ikon és
+GitHub-link pontosan úgy működik a lejátszón, mint a többi alkalmazásnál.
+A `player` repó külön kiadási verziófájlja jelenleg nem található;
+ezért a launcher a valódi Git-revíziót jeleníti meg, nem talál ki verziószámot.
 
 Ha az adott célkönyvtárban idegen fájl van Git-klón helyett, a művelet leáll,
 nem írja felül automatikusan.
