@@ -124,6 +124,30 @@ class ManagerTests(unittest.TestCase):
             self.assertTrue(m.installed(app))
             self.assertEqual(m.version(app), "—")
 
+    def test_player_install_only_missing_system_packages(self):
+        app = m.BY_KEY["player"]
+        clone = self.home / "repo"
+        clone.mkdir()
+        (clone / "install.sh").write_text("#!/bin/bash\n", encoding="utf-8")
+
+        def probe(args, **kwargs):
+            if args[:2] == ["pacman", "-Qq"]:
+                return __import__("subprocess").CompletedProcess(
+                    args, 1 if args[2] in ("pyside6", "xorg-xwayland") else 0
+                )
+            return __import__("subprocess").CompletedProcess(args, 1)
+
+        with patch.object(m, "ensure_source", return_value=clone), \
+             patch.object(m, "installed", return_value=True), \
+             patch.object(m.shutil, "which", return_value="/usr/bin/fake"), \
+             patch.object(m.subprocess, "run", side_effect=probe), \
+             patch.object(m, "run_command") as execute:
+            m.install_or_update(app, "install")
+        execute.assert_any_call(
+            "sudo", "pacman", "-S", "--needed", "pyside6", "xorg-xwayland"
+        )
+        execute.assert_any_call("bash", str(clone / "install.sh"), cwd=clone)
+
     def test_github_url(self):
         self.assertEqual(
             m.repo_url(m.BY_KEY["Movie_database"]),
