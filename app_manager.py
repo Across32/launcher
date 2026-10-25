@@ -37,6 +37,7 @@ APPS = (
     App("laser", "Laser Studio", "Lézergravírozás, képfeldolgozás és G-kód készítése.", "Lézer / CAM", "L", "#4b9a8b", "applications-graphics", "laser-studio.desktop", "laser_studio/core.py"),
     App("tankolas", "Tankolás", "Üzemanyag-fogyasztás, tankolások és szervizkiadások.", "Jármű / Költségek", "T", "#bb6866", "applications-utilities", "Tankolas.desktop", "VERSION"),
     App("gas", "Gázfogyasztás", "Gázóraállások, fogyasztás és költségek nyilvántartása.", "Otthon / Rezsi", "G", "#607fbd", "applications-utilities", "gas-tracker.desktop", "pyproject.toml"),
+    App("player", "Across Player – Lejátszó", "Magyar nyelvű Full HD és 4K videólejátszó mpv-alapon, hangsáv- és feliratválasztással.", "Film / Lejátszó", "▶", "#527ca4", "applications-multimedia", "across-player.desktop", "player.py"),
 )
 BY_KEY = {app.key: app for app in APPS}
 
@@ -140,6 +141,23 @@ def root_from_desktop(app: App) -> Path | None:
         for parent in (p.parent, *list(p.parents)[:5]):
             if valid_checkout(parent, app):
                 return parent
+    if app.key == "player":
+        # Across Player's KDE desktop entry points to ~/.local/bin/across-player.
+        # That wrapper contains the actual repo's player.py path, even if cloned
+        # outside the project's usual ~/.local/share/across-player directory.
+        for arg in argv:
+            wrapper = Path(arg).expanduser()
+            if wrapper.name != "across-player" or not wrapper.is_file():
+                continue
+            try:
+                for line in wrapper.read_text(encoding="utf-8").splitlines():
+                    words = shlex.split(line)
+                    if len(words) >= 3 and words[:2] == ["exec", "/usr/bin/python"]:
+                        source = Path(words[2]).expanduser()
+                        if source.name == "player.py" and valid_checkout(source.parent, app):
+                            return source.parent
+            except (OSError, ValueError):
+                continue
     return None
 
 
@@ -147,9 +165,17 @@ def source_dir(app: App) -> Path:
     external = root_from_desktop(app)
     if external:
         return external
+    if app.key == "player":
+        # The player's own documented clone destination. Do not create a second
+        # installation when an existing checkout is already present.
+        player_root = Path.home() / ".local/share/across-player"
+        if player_root.exists():
+            return player_root
     known = managed_dir() / app.key
     if known.exists():
         return known
+    if app.key == "player":
+        return Path.home() / ".local/share/across-player"
     if app.key == "Munkak_eladasok" and not working_desktop(app):
         # This repo's installer intentionally refuses a new, non-existing target.
         # A fresh clone at its historical default is itself a valid target.
@@ -165,6 +191,10 @@ def is_ready(app: App, folder: Path) -> bool:
     if app.key == "Movie_database":
         return ((data_home() / "filmadatbazis-app" / ".venv/bin/python").is_file()
                 and (data_home() / "filmadatbazis-app" / "main.py").is_file())
+    if app.key == "player":
+        wrapper = Path.home() / ".local/bin/across-player"
+        return ((folder / "player.py").is_file()
+                and wrapper.is_file() and os.access(wrapper, os.X_OK))
     executable = ".venv/bin/gas-tracker" if app.key == "gas" else ".venv/bin/python"
     return (folder / executable).is_file()
 
@@ -174,6 +204,11 @@ def installed(app: App) -> bool:
 
 
 def version(app: App) -> str:
+    # The player project currently has no explicit VERSION/pyproject version.
+    # Display its real local Git revision, not an invented release number.
+    if app.key == "player":
+        commit = revision(app)
+        return f"Git {commit}" if commit else "—"
     folder = source_dir(app)
     candidate = folder / app.version_file
     if app.key == "Movie_database" and not candidate.exists():
@@ -220,6 +255,8 @@ def open_application(app: App) -> None:
         elif app.key == "Movie_database":
             argv = [str(data_home() / "filmadatbazis-app/.venv/bin/python"),
                     str(data_home() / "filmadatbazis-app/main.py")]
+        elif app.key == "player":
+            argv = [str(Path.home() / ".local/bin/across-player")]
         else:
             argv = ["bash", str(folder / script)]
         cwd = folder
@@ -273,6 +310,21 @@ def install_or_update(app: App, action: str) -> None:
             "A mappa hiányzik; csatold az adatmeghajtót, mielőtt telepítenéd."
         )
     folder = ensure_source(app, action)
+    if app.key == "player":
+        # The upstream installer intentionally requires system mpv and the
+        # Arch-packaged PySide6 (/usr/bin/python). Install only if missing;
+        # no pip virtualenv is appropriate for this application.
+        python = Path("/usr/bin/python")
+        python_ok = python.is_file() and subprocess.run(
+            [str(python), "-c", "import PySide6"],
+            capture_output=True, check=False,
+        ).returncode == 0
+        if not shutil.which("mpv") or not python_ok:
+            if not shutil.which("pacman"):
+                raise RuntimeError("Az Across Player EndeavourOS / Arch Linux rendszert igényel.")
+            print("Across Player rendszerfüggőségek telepítése…", flush=True)
+            run_command("sudo", "pacman", "-S", "--needed",
+                        "mpv", "pyside6", "qt6-base", "xorg-xwayland")
     script = "install_kde_menu.sh" if app.key == "Movie_database" else "install.sh"
     installer = folder / script
     if not installer.is_file():
