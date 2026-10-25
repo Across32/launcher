@@ -134,7 +134,15 @@ Minden repóhoz pontosan két, állandó nevű adatmentés tartozik:
 ```text
 Across32__relief.git/       # teljes, bare Git-tükör / commit- és ágtörténet
 Across32__relief.bundle     # önálló, ellenőrzött Git bundle
+Across32__player.git/       # Across Player – teljes Git-tükör
+Across32__player.bundle     # Across Player – ellenőrzött Git bundle
 ```
+
+A `player` projekt GitHub-repóneve **`Across32/player`** (az alkalmazás neve: Across Player).
+A backup külön ellenőrzi a privát `player` repó jelenlétét a listában,
+és ha a normál felsorolásból hiányzik, a GitHub CLI-vel külön megvizsgálja.
+Csak privátként ellenőrzött repót ment; sikertelen ellenőrzésnél hibaüzenettel leáll,
+nem jelzi tévesen teljesnek a mentést.
 
 A többi repónál is ugyanez a névkonvenció. A mentés nem a programok
 munkamappáinak adatbázisait vagy helyi, nem követett fájljait menti, hanem a GitHubon
