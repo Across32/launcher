@@ -311,20 +311,34 @@ def install_or_update(app: App, action: str) -> None:
         )
     folder = ensure_source(app, action)
     if app.key == "player":
-        # The upstream installer intentionally requires system mpv and the
-        # Arch-packaged PySide6 (/usr/bin/python). Install only if missing;
-        # no pip virtualenv is appropriate for this application.
+        # The upstream installer requires system /usr/bin/python and pacman
+        # packages, not a virtual environment. Verify every prerequisite,
+        # including XWayland for embedded mpv video under KDE Wayland.
+        if not shutil.which("pacman"):
+            raise RuntimeError("Az Across Player EndeavourOS / Arch Linux rendszert igényel.")
+        required = ("mpv", "pyside6", "qt6-base", "xorg-xwayland")
+        missing = []
+        for package in required:
+            found = subprocess.run(
+                ["pacman", "-Qq", package], capture_output=True,
+                check=False, timeout=20,
+            )
+            if found.returncode != 0:
+                missing.append(package)
         python = Path("/usr/bin/python")
         python_ok = python.is_file() and subprocess.run(
             [str(python), "-c", "import PySide6"],
-            capture_output=True, check=False,
+            capture_output=True, check=False, timeout=20,
         ).returncode == 0
-        if not shutil.which("mpv") or not python_ok:
-            if not shutil.which("pacman"):
-                raise RuntimeError("Az Across Player EndeavourOS / Arch Linux rendszert igényel.")
-            print("Across Player rendszerfüggőségek telepítése…", flush=True)
-            run_command("sudo", "pacman", "-S", "--needed",
-                        "mpv", "pyside6", "qt6-base", "xorg-xwayland")
+        if not python_ok and "pyside6" not in missing:
+            raise RuntimeError(
+                "A rendszerszintű Python nem tudja importálni a PySide6-ot. "
+                "Ellenőrizd a pacman Python/PySide6 telepítését."
+            )
+        if missing:
+            print("Across Player hiányzó rendszercsomagok: "
+                  + ", ".join(missing), flush=True)
+            run_command("sudo", "pacman", "-S", "--needed", *missing)
     script = "install_kde_menu.sh" if app.key == "Movie_database" else "install.sh"
     installer = folder / script
     if not installer.is_file():
