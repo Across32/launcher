@@ -18,10 +18,10 @@ class ManagerTests(unittest.TestCase):
         self.env.start()
         self.addCleanup(self.env.stop)
 
-    def test_six_repo_keys(self):
+    def test_seven_repo_keys(self):
         self.assertEqual(
             [app.key for app in m.APPS],
-            ["relief", "Movie_database", "Munkak_eladasok", "laser", "tankolas", "gas"],
+            ["relief", "Movie_database", "Munkak_eladasok", "laser", "tankolas", "gas", "player"],
         )
 
     def test_git_origin_allowlist(self):
@@ -75,6 +75,54 @@ class ManagerTests(unittest.TestCase):
     def test_missing_app_is_not_installed(self):
         with patch.object(m, "working_desktop", return_value=None):
             self.assertFalse(m.installed(m.BY_KEY["gas"]))
+
+    def test_player_repository_and_kde_metadata(self):
+        app = m.BY_KEY["player"]
+        self.assertEqual(app.desktop_pattern, "across-player.desktop")
+        self.assertEqual(app.version_file, "player.py")
+        self.assertEqual(m.repo_url(app), "https://github.com/Across32/player.git")
+        self.assertTrue(m.same_remote("git@github.com:Across32/player.git", app))
+        self.assertFalse(m.same_remote("https://github.com/not-Across32/player.git", app))
+
+    def test_player_recognizes_documented_clone_directory(self):
+        app = m.BY_KEY["player"]
+        directory = self.home / ".local/share/across-player"
+        directory.mkdir(parents=True)
+        with patch.object(m.Path, "home", return_value=self.home):
+            self.assertEqual(m.source_dir(app), directory)
+
+    def test_player_recovers_git_repo_from_system_wrapper(self):
+        app = m.BY_KEY["player"]
+        repo = self.home / "media source with spaces" / "player"
+        repo.mkdir(parents=True)
+        (repo / ".git").mkdir()
+        exe = self.home / ".local/bin/across-player"
+        exe.parent.mkdir(parents=True)
+        exe.write_text(
+            "#!/usr/bin/env bash\\n"
+            "exec /usr/bin/python " + __import__("shlex").quote(str(repo / "player.py")) + ' "$@"\\n',
+            encoding="utf-8",
+        )
+        exe.chmod(0o755)
+        desktop = m.applications_dir() / "across-player.desktop"
+        desktop.parent.mkdir(parents=True)
+        desktop.write_text("[Desktop Entry]\\nType=Application\\nExec=" + str(exe) + " %f\\n", encoding="utf-8")
+        with patch.object(m, "valid_checkout", side_effect=lambda candidate, _app: candidate == repo):
+            self.assertEqual(m.root_from_desktop(app), repo)
+
+    def test_player_ready_without_virtual_environment(self):
+        app = m.BY_KEY["player"]
+        directory = self.home / ".local/share/across-player"
+        directory.mkdir(parents=True)
+        (directory / "player.py").write_text("# source", encoding="utf-8")
+        wrapper = self.home / ".local/bin/across-player"
+        wrapper.parent.mkdir(parents=True)
+        wrapper.write_text("#!/bin/sh\\n", encoding="utf-8")
+        wrapper.chmod(0o755)
+        with patch.object(m.Path, "home", return_value=self.home):
+            self.assertTrue(m.is_ready(app, directory))
+            self.assertTrue(m.installed(app))
+            self.assertEqual(m.version(app), "—")
 
     def test_github_url(self):
         self.assertEqual(
