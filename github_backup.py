@@ -18,6 +18,9 @@ from datetime import datetime, timezone
 
 BACKUP_ROOT = Path("/Volumes/Data/Github backup")
 OWNER = "Across32"
+# Across Player is a required private repository. The normal private-repo
+# enumeration already includes it; this guard detects incomplete API listings.
+REQUIRED_PRIVATE_REPOS = ("player",)
 SAFE_REPO = re.compile(r"^[A-Za-z0-9_.-]{1,100}$")
 
 
@@ -58,6 +61,32 @@ def private_repositories() -> list[str]:
         repos.append(repo)
     if len(repos) != len(set(repos)):
         raise RuntimeError("A lekért GitHub-listában ismétlődő repónév szerepel.")
+    for name in REQUIRED_PRIVATE_REPOS:
+        if name in repos:
+            continue
+        # A private repository should normally appear in gh repo list.
+        # If pagination/access filtering omits it, verify its visibility
+        # independently before adding it to the private-only backup.
+        print(f"Külön ellenőrzés: {OWNER}/{name}", flush=True)
+        try:
+            details = json.loads(command(
+                "gh", "repo", "view", f"{OWNER}/{name}",
+                "--json", "nameWithOwner,isPrivate", timeout=20, capture=True,
+            ))
+        except (OSError, ValueError, subprocess.CalledProcessError,
+                subprocess.TimeoutExpired) as exc:
+            raise RuntimeError(
+                f"Az {OWNER}/{name} repó ellenőrzése sikertelen. "
+                "A mentés nem indul el hiányos repólistával; ellenőrizd a gh auth status parancsot."
+            ) from exc
+        if (not isinstance(details, dict)
+                or details.get("nameWithOwner") != f"{OWNER}/{name}"
+                or details.get("isPrivate") is not True):
+            raise RuntimeError(
+                f"Az {OWNER}/{name} nem igazolható privát repóként. "
+                "A mentés nem indul el hiányos repólistával."
+            )
+        repos.append(name)
     if not repos:
         raise RuntimeError(
             "Nem található elérhető privát Across32 repó. "
