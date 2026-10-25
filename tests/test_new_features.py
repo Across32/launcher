@@ -101,11 +101,37 @@ class NewFeatureTests(unittest.TestCase):
         data = (
             '[{"nameWithOwner":"Across32/relief","isPrivate":true},'
             '{"nameWithOwner":"Across32/public","isPrivate":false},'
-            '{"nameWithOwner":"Across32/laser","isPrivate":true}]'
+            '{"nameWithOwner":"Across32/laser","isPrivate":true},'
+            '{"nameWithOwner":"Across32/player","isPrivate":true}]'
         )
         with patch.object(backup.shutil, "which", return_value="/usr/bin/gh"), \
-             patch.object(backup, "command", side_effect=["", data]):
-            self.assertEqual(backup.private_repositories(), ["laser", "relief"])
+             patch.object(backup, "command", side_effect=["", data]) as command:
+            self.assertEqual(backup.private_repositories(), ["laser", "player", "relief"])
+            self.assertEqual(command.call_count, 2)  # No duplicate player lookup.
+
+    def test_player_backup_is_added_when_private_repo_listing_omits_it(self):
+        listing = '[{"nameWithOwner":"Across32/laser","isPrivate":true}]'
+        player = '{"nameWithOwner":"Across32/player","isPrivate":true}'
+        with patch.object(backup.shutil, "which", return_value="/usr/bin/gh"), \
+             patch.object(backup, "command", side_effect=["", listing, player]) as cmd:
+            repos = backup.private_repositories()
+        self.assertEqual(repos, ["laser", "player"])
+        self.assertEqual(cmd.call_args.args[:5],
+                         ("gh", "repo", "view", "Across32/player", "--json"))
+
+    def test_player_backup_rejects_unverified_public_or_inaccessible_repo(self):
+        listing = '[{"nameWithOwner":"Across32/laser","isPrivate":true}]'
+        public = '{"nameWithOwner":"Across32/player","isPrivate":false}'
+        with patch.object(backup.shutil, "which", return_value="/usr/bin/gh"), \
+             patch.object(backup, "command", side_effect=["", listing, public]):
+            with self.assertRaisesRegex(RuntimeError, "nem igazolható privát"):
+                backup.private_repositories()
+
+    def test_player_backup_has_one_stable_mirror_and_bundle_name(self):
+        with patch.object(backup, "BACKUP_ROOT", self.root):
+            mirror, bundle = backup.names("player")
+        self.assertEqual(mirror, self.root / "Across32__player.git")
+        self.assertEqual(bundle, self.root / "Across32__player.bundle")
 
     def test_one_good_backup_replaces_old_two_fixed_names(self):
         with patch.object(backup, "BACKUP_ROOT", self.root):
