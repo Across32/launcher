@@ -43,7 +43,7 @@ jobs:
           from PySide6.QtWidgets import QPushButton
           cards = [window.grid.itemAt(i).widget() for i in range(window.grid.count())]
           assert sum(bool(card.findChildren(QPushButton, "appIcon")) for card in cards) == len(APPS)
-          assert sum(bool(card.findChildren(QPushButton, "history")) for card in cards) == 6
+          assert sum(bool(card.findChildren(QPushButton, "history")) for card in cards) == len(APPS)
           window.minimize_to_tray()
           window.restore_from_tray()
           window.close()
