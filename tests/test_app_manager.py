@@ -99,14 +99,14 @@ class ManagerTests(unittest.TestCase):
         exe = self.home / ".local/bin/across-player"
         exe.parent.mkdir(parents=True)
         exe.write_text(
-            "#!/usr/bin/env bash\\n"
-            "exec /usr/bin/python " + __import__("shlex").quote(str(repo / "player.py")) + ' "$@"\\n',
+            "#!/usr/bin/env bash\n"
+            "exec /usr/bin/python " + __import__("shlex").quote(str(repo / "player.py")) + ' "$@"\n',
             encoding="utf-8",
         )
         exe.chmod(0o755)
         desktop = m.applications_dir() / "across-player.desktop"
         desktop.parent.mkdir(parents=True)
-        desktop.write_text("[Desktop Entry]\\nType=Application\\nExec=" + str(exe) + " %f\\n", encoding="utf-8")
+        desktop.write_text("[Desktop Entry]\nType=Application\nExec=" + str(exe) + " %f\n", encoding="utf-8")
         with patch.object(m, "valid_checkout", side_effect=lambda candidate, _app: candidate == repo):
             self.assertEqual(m.root_from_desktop(app), repo)
 
@@ -117,7 +117,7 @@ class ManagerTests(unittest.TestCase):
         (directory / "player.py").write_text("# source", encoding="utf-8")
         wrapper = self.home / ".local/bin/across-player"
         wrapper.parent.mkdir(parents=True)
-        wrapper.write_text("#!/bin/sh\\n", encoding="utf-8")
+        wrapper.write_text("#!/bin/sh\n", encoding="utf-8")
         wrapper.chmod(0o755)
         with patch.object(m.Path, "home", return_value=self.home):
             self.assertTrue(m.is_ready(app, directory))
