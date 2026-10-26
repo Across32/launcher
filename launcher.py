@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""KDE Plasma/EndeavourOS launcher for the six Across32 applications."""
+"""KDE Plasma/EndeavourOS launcher for the Across32 applications."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -12,13 +12,14 @@ import webbrowser
 from PySide6.QtCore import Qt, QSize, QProcess, QTimer, QUrl
 from PySide6.QtGui import QDesktopServices, QIcon, QPixmap
 from PySide6.QtWidgets import (
-    QApplication, QComboBox, QDialog, QFileDialog, QFrame, QGridLayout,
+    QApplication, QCheckBox, QComboBox, QDialog, QFileDialog, QFrame, QGridLayout,
     QHBoxLayout, QLabel, QLineEdit, QMainWindow, QMenu, QMessageBox,
     QPushButton, QScrollArea, QSizePolicy, QSystemTrayIcon, QVBoxLayout, QWidget,
 )
 
 from app_manager import APPS, App, installed, open_application, repo_url, revision, version
 from app_icons import delete_icon, save_icon, selected_icon
+from autostart import enabled as autostart_enabled, set_enabled as set_autostart_enabled
 
 
 STYLE = """
@@ -126,6 +127,19 @@ QPushButton#backup {
 }
 QPushButton#backup:hover { background: #4c7eaa; }
 QPushButton#backup:disabled { background: #35475a; color: #7d96ae; }
+QCheckBox#autostart {
+    color: #c8daeb; font-size: 11px; font-weight: 700;
+    spacing: 8px;
+}
+QCheckBox#autostart::indicator {
+    width: 17px; height: 17px;
+}
+QCheckBox#autostart::indicator:unchecked {
+    background: #2b3c51; border: 1px solid #6a849e; border-radius: 4px;
+}
+QCheckBox#autostart::indicator:checked {
+    background: #6094be; border: 2px solid #b8d9f2; border-radius: 4px;
+}
 QDialog#historyDialog, QDialog#historyDialog QScrollArea,
 QDialog#historyDialog QWidget#historyContent {
     background: #1e2c3b;
@@ -397,6 +411,15 @@ class Launcher(QMainWindow):
         self.summary.setObjectName("summary")
         tools.addWidget(self.summary)
         tools.addStretch()
+        self.autostart_checkbox = QCheckBox("INDÍTÁS A RENDSZERREL · TÁLCÁRA")
+        self.autostart_checkbox.setObjectName("autostart")
+        self.autostart_checkbox.setToolTip(
+            "Bekapcsolva KDE-bejelentkezéskor a Launcher közvetlenül a "
+            "rendszertálcára indul; kézi megnyitáskor a főablak jelenik meg."
+        )
+        self.autostart_checkbox.setChecked(autostart_enabled())
+        self.autostart_checkbox.toggled.connect(self.change_autostart)
+        tools.addWidget(self.autostart_checkbox)
         self.filter = QComboBox()
         self.filter.addItems(["Összes alkalmazás", "Telepítve", "Nincs telepítve"])
         self.filter.currentIndexChanged.connect(self.refresh)
@@ -438,8 +461,8 @@ class Launcher(QMainWindow):
 
 
     def setup_tray(self):
-        if not QSystemTrayIcon.isSystemTrayAvailable():
-            return
+        # Register even when Plasma's panel is still starting. Qt automatically
+        # displays an already-visible tray icon when a system tray appears.
         tray = QSystemTrayIcon(self)
         icon_file = Path(__file__).resolve().parent / "assets/across32-launcher.svg"
         icon = QIcon(str(icon_file))
@@ -464,16 +487,52 @@ class Launcher(QMainWindow):
         self.tray = tray
 
     def minimize_to_tray(self):
-        if self.tray is not None and self.tray.isVisible():
+        if self.tray is not None and QSystemTrayIcon.isSystemTrayAvailable():
             self.hide()
         else:
             # KDE's ordinary taskbar is still available even without a tray.
             self.showMinimized()
 
+    def start_in_tray(self):
+        """Never show the main window on the desktop during KDE autostart."""
+        self._startup_tray_pending = True
+        if QSystemTrayIcon.isSystemTrayAvailable():
+            self.hide()
+            self._startup_tray_pending = False
+            return
+        # In early Plasma login, the tray may not exist yet. Keep the window
+        # minimized instead of showing it full-size; hide when panel is ready.
+        self.showMinimized()
+        self._startup_tray_timer = QTimer(self)
+        self._startup_tray_timer.setInterval(1250)
+        self._startup_tray_timer.timeout.connect(self.check_startup_tray)
+        self._startup_tray_timer.start()
+
+    def check_startup_tray(self):
+        if not getattr(self, "_startup_tray_pending", False):
+            self._startup_tray_timer.stop()
+            return
+        if QSystemTrayIcon.isSystemTrayAvailable():
+            self.hide()
+            self._startup_tray_pending = False
+            self._startup_tray_timer.stop()
+
     def restore_from_tray(self):
+        self._startup_tray_pending = False
         self.showNormal()
         self.raise_()
         self.activateWindow()
+
+    def change_autostart(self, desired: bool):
+        try:
+            set_autostart_enabled(
+                desired, Path(__file__).resolve().parent / "run.sh"
+            )
+        except (OSError, RuntimeError, ValueError) as exc:
+            self.autostart_checkbox.blockSignals(True)
+            self.autostart_checkbox.setChecked(autostart_enabled())
+            self.autostart_checkbox.blockSignals(False)
+            QMessageBox.warning(self, "Automatikus indítás", str(exc))
 
     def closeEvent(self, event):
         # Closing X is a REAL exit, never an implicit minimize-to-tray.
@@ -666,7 +725,10 @@ def main() -> int:
     app.setQuitOnLastWindowClosed(False)
     app.setStyleSheet(STYLE)
     window = Launcher()
-    window.show()
+    if "--start-in-tray" in sys.argv[1:]:
+        window.start_in_tray()
+    else:
+        window.show()
     return app.exec()
 
 
