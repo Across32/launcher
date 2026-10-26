@@ -20,7 +20,7 @@ jobs:
           python -m pip install 'PySide6-Essentials>=6.7,<7'
       - name: Compile and validate shell scripts
         run: |
-          python -m compileall -q app_manager.py launcher.py app_icons.py release_history.py github_backup.py tests
+          python -m compileall -q app_manager.py launcher.py app_icons.py release_history.py github_backup.py autostart.py tests
           bash -n install.sh run.sh
       - name: Unit tests
         env:
@@ -47,5 +47,19 @@ jobs:
           window.minimize_to_tray()
           window.restore_from_tray()
           window.close()
+          from unittest.mock import patch
+          from PySide6.QtWidgets import QSystemTrayIcon
+          window_tray = Launcher()
+          with patch.object(QSystemTrayIcon, "isSystemTrayAvailable", return_value=True):
+              window_tray.start_in_tray()
+              assert not window_tray.isVisible(), "Autostart must not open the main window"
+          window_tray.restore_from_tray()
+          assert window_tray.isVisible(), "Tray click must open the main window"
+          window_tray.close()
+          window_no_tray = Launcher()
+          with patch.object(QSystemTrayIcon, "isSystemTrayAvailable", return_value=False):
+              window_no_tray.start_in_tray()
+              assert window_no_tray.isMinimized(), "Before Plasma tray readiness stay minimized"
+          window_no_tray.close()
           print("Launcher UI: OK")
           PY
