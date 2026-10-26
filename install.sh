@@ -30,7 +30,7 @@ Version=1.0
 Type=Application
 Name=Across32 – Alkalmazáskezelő
 GenericName=GitHub alkalmazások telepítése és frissítése
-Comment=Relief Studio, Filmadatbázis, Munkák és eladások, Laser Studio, Tankolás, Gázfogyasztás
+Comment=Relief Studio, Filmadatbázis, Munkák és eladások, Laser Studio, Tankolás, Gázfogyasztás, Across Player
 Exec="$ROOT/run.sh"
 Path=$ROOT
 Icon=$ROOT/assets/across32-launcher.svg
@@ -40,6 +40,11 @@ Keywords=Across32;CNC;Laser;GitHub;Frissítés;Telepítés;
 StartupNotify=true
 EOF
 chmod +x "$ROOT/run.sh" "$desktop_file"
+# An existing KDE Settings -> Autostart entry must start hidden in the tray.
+# Do not turn on autostart if the user has not already enabled it.
+if ! python3 "$ROOT/autostart.py" --repair "$ROOT/run.sh"; then
+  echo "Figyelem: a meglévő KDE automatikus indítás frissítése nem sikerült." >&2
+fi
 command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$desktop_dir" || true
 command -v kbuildsycoca6 >/dev/null 2>&1 && kbuildsycoca6 >/dev/null 2>&1 || true
 echo
