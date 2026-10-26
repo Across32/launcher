@@ -120,6 +120,35 @@ nem írja felül automatikusan.
 - A címsor **X / Bezárás** gombja ténylegesen kilép, nem hagy rejtett alkalmazást
   a tálcán. A program természetes Linux-ablak dekorációját nem cseréljük le.
 
+## Automatikus indítás közvetlenül a KDE rendszertálcára
+
+A Launcher **külön automatikus indítási móddal** rendelkezik: Plasma bejelentkezéskor
+nem mutatja a főablakot az Asztalon, hanem rögtön a rendszertálcán fut.
+A rendszertálca ikonjára kattintva a főablak megnyitható; az ikon jobb gombos
+menüjében **Megnyitás** és **Teljes bezárás** érhető el.
+
+- A fejlécben jelöld be az **INDÍTÁS A RENDSZERREL · TÁLCÁRA** kapcsolót.
+  Ez létrehozza a felhasználói \`~/.config/autostart/across32-launcher.desktop\`
+  KDE autostart bejegyzést, amely a \`--start-in-tray\` kapcsolót használja.
+  A kapcsoló kikapcsolása törli a bejegyzést.
+- **Ha az automatikus indítás már a KDE Rendszerbeállításokban be volt
+  kapcsolva**, a \`bash install.sh\` frissíti a meglévő, azonos nevű autostart
+  bejegyzést, és tálcás indításra állítja át. Nem engedélyezi magától az
+  automatikus indítást, ha az korábban ki volt kapcsolva.
+- A szokásos KDE alkalmazásmenüből vagy \`./run.sh\` paranccsal kézzel indítva
+  továbbra is **normál főablak** jelenik meg.
+- Közvetlen parancssori indítás látható ablak nélkül:
+  \`./run.sh --start-in-tray\`
+- Ha a Plasma rendszertálcája még nem áll készen a bejelentkezés pillanatában,
+  az ablak csak **minimalizálva** indul (nem jelenik meg az asztalon), majd a
+  rendszertálca elérhetővé válásakor rejtve marad a tálcán.
+- A **TÁLCÁRA** gomb továbbra is használható, az **X** gomb pedig a teljes
+  alkalmazást bezárja.
+
+**KDE Rendszerbeállítások → Indítás és leállítás → Automatikus indítás** alatt
+ugyanez a bejegyzés látható. A felhasználói menüindítót és a rendszerindítási
+parancsot külön kezeljük, így a kézi megnyitás nem válik rejtett indítássá.
+
 ## GitHub Backup – csak a privát repók
 
 A fejlécben található **⬇ GITHUB BACKUP** gomb az Across32 fiók elérhető
@@ -176,7 +205,7 @@ a mentés indítása előtt; nem hozzuk létre automatikusan a hiányzó csatol�
 
 ```bash
 python -m unittest discover -s tests -v
-python -m compileall -q app_manager.py launcher.py release_history.py app_icons.py github_backup.py
+python -m compileall -q app_manager.py launcher.py release_history.py app_icons.py github_backup.py autostart.py
 QT_QPA_PLATFORM=offscreen .venv/bin/python launcher.py
 ```
 
