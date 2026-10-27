@@ -32,12 +32,14 @@ def entry_is_ours(path: Path) -> bool:
         entry = parser["Desktop Entry"]
         command = entry.get("Exec", "").casefold()
         name = entry.get("Name", "").casefold()
-        desktop_id = path.stem.casefold()
         return (
             "across32-launcher" in command
-            or "across32-launcher" in desktop_id
-            or "launcher.py" in command
-            or ("across32" in name and ("alkalmazáskezelő" in name or "launcher" in name))
+            or ("across32" in name and (
+                "alkalmazáskezelő" in name
+                or "launcher" in name
+                or "/launcher/run.sh" in command
+                or "launcher.py" in command
+            ))
         )
     except (OSError, KeyError, configparser.Error):
         return False
