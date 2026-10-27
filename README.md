@@ -37,6 +37,32 @@ git pull --ff-only
 bash install.sh
 ```
 
+## A futó Launcher pontos verziójának ellenőrzése
+
+A Launcher saját kiadási verziószáma a gyökérben lévő `VERSION` fájlban van.
+**v1.2.0-tól a KDE ablak címsora és a fejléc is megmutatja** a futó
+alkalmazás verzióját és a tényleges helyi Git-revízió első nyolc karakterét,
+például: `Across32 – Alkalmazáskezelő | v1.2.0 · Git abc12345`.
+A Git-azonosító minden új forrásfrissítéssel változhat, a kiadási szám csak
+verzióváltáskor. Így pontosan azonosítható, melyik alkalmazáspéldány fut.
+
+A KDE menüben szereplő példány verzióját terminálból így ellenőrizheted:
+
+```bash
+desktop="${XDG_DATA_HOME:-$HOME/.local/share}/applications/across32-launcher.desktop"
+folder="$(sed -n 's/^Path=//p' "$desktop" | head -n 1)"
+echo "KDE menüben telepített forrásmappa: $folder"
+"$folder/run.sh" --version
+```
+
+Az indító által kiírt verziót hasonlítsd össze az ablak címsorában láthatóval.
+Ha eltérnek, **egy régebbi, még futó Launcher-ablakot nézel**: teljes
+bezárás után indítsd újra a KDE menüből. Ha az új címsor sem látszik,
+valószínűleg más forrásmappából indítottál egy másik klónt.
+
+A `bash install.sh` telepítéskor kiírja a verziót, a Git SHA-t, a forrásmappát,
+a létrehozott `.desktop` fájlt és a pontos indítási parancsot is.
+
 ## 2. Privát repók hitelesítése
 
 A launcher **nem tárol hozzáférési tokent vagy jelszót**, és a GitHubnál meglévő hozzáférésedet használja.
