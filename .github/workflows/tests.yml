@@ -20,7 +20,7 @@ jobs:
           python -m pip install 'PySide6-Essentials>=6.7,<7'
       - name: Compile and validate shell scripts
         run: |
-          python -m compileall -q app_manager.py launcher.py app_icons.py release_history.py github_backup.py autostart.py tests
+          python -m compileall -q app_manager.py launcher.py app_icons.py release_history.py github_backup.py autostart.py version_info.py tests
           bash -n install.sh run.sh
       - name: Unit tests
         env:
@@ -39,6 +39,9 @@ jobs:
           assert len(APPS) == 7
           assert window.grid.count() == len(APPS)
           assert "Across32" in window.windowTitle()
+          assert "v1.2.0" in window.windowTitle()
+          assert "Git" in window.windowTitle()
+          assert "v1.2.0" in window.build_badge.text()
           assert window.backup_button.text().endswith("GITHUB BACKUP")
           assert window.autostart_checkbox.isVisible() is False  # parent window not shown
           window.show()
