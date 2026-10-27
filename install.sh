@@ -3,6 +3,12 @@
 set -Eeuo pipefail
 ROOT="$(cd -- "$(dirname -- "$(readlink -f -- "$0")")" && pwd)"
 cd "$ROOT"
+# Print exact local checkout and release so users can distinguish a stale
+# running instance from the newly installed one.
+launcher_version="$(tr -d '\\r\\n' < "$ROOT/VERSION")"
+launcher_sha="$(git -C "$ROOT" rev-parse --short=8 HEAD 2>/dev/null || printf 'nincs-git')"
+echo "Across32 Launcher telepítés: v$launcher_version · Git $launcher_sha"
+echo "Forrásmappa: $ROOT"
 if ! command -v pacman >/dev/null 2>&1; then
   echo "Ez a telepítő EndeavourOS / Arch Linux rendszerhez készült." >&2
   exit 1
@@ -52,3 +58,6 @@ echo "Across32 Launcher telepítve!"
 echo "A KDE alkalmazásindítóban: Across32 – Alkalmazáskezelő"
 echo "Közvetlen indítás: $ROOT/run.sh"
 echo "Telepített KDE indító: $desktop_file"
+echo "Telepített indítóparancs: $(grep '^Exec=' "$desktop_file" | cut -d= -f2-)"
+echo "Verzió lekérdezése: $ROOT/run.sh --version"
+echo "FONTOS: Ha a Launcher még fut, teljesen zárd be, majd indítsd újra."
