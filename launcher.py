@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 from app_manager import APPS, App, installed, open_application, repo_url, revision, version
 from app_icons import delete_icon, save_icon, selected_icon
 from autostart import enabled as autostart_enabled, set_enabled as set_autostart_enabled
+from version_info import build_label, title_text
 
 
 STYLE = """
@@ -37,6 +38,15 @@ QLabel#brand {
     font-size: 25px;
     font-weight: 900;
     letter-spacing: 2px;
+}
+QLabel#buildVersion {
+    color: #e4f4ff;
+    background: #345472;
+    border: 1px solid #6385a6;
+    border-radius: 6px;
+    padding: 5px 9px;
+    font-size: 12px;
+    font-weight: 800;
 }
 QLabel#micro {
     color: #89a9c7;
@@ -364,7 +374,7 @@ class HistoryDialog(QDialog):
 class Launcher(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("Across32 – Alkalmazáskezelő")
+        self.setWindowTitle(title_text())
         self.setMinimumSize(940, 640)
         self.resize(1280, 795)
         self.running: dict[str, QProcess] = {}
@@ -390,6 +400,12 @@ class Launcher(QMainWindow):
         brand = QLabel("ACROSS32")
         brand.setObjectName("brand")
         head.addWidget(brand)
+        self.build_badge = QLabel(build_label())
+        self.build_badge.setObjectName("buildVersion")
+        self.build_badge.setToolTip(
+            "Az éppen futó Launcher verziója és a GitHubról telepített forrás Git-azonosítója."
+        )
+        head.addWidget(self.build_badge)
         subtitle = QLabel("CRAFT APP SUITE  /  ENDEAVOUROS")
         subtitle.setObjectName("micro")
         head.addWidget(subtitle)
@@ -487,7 +503,7 @@ class Launcher(QMainWindow):
         if icon.isNull():
             icon = QIcon.fromTheme("applications-system")
         tray.setIcon(icon)
-        tray.setToolTip("Across32 – Alkalmazáskezelő")
+        tray.setToolTip(title_text())
         menu = QMenu(self)
         show_action = menu.addAction("Megnyitás")
         show_action.triggered.connect(self.restore_from_tray)
@@ -751,6 +767,10 @@ class Launcher(QMainWindow):
                                 "A részletes hiba a Konsole ablakban látható.")
 
 def main() -> int:
+    if "--version" in sys.argv[1:]:
+        print(title_text())
+        print(f"Futtatási mappa: {Path(__file__).resolve().parent}")
+        return 0
     app = QApplication(sys.argv)
     app.setApplicationName("Across32 Launcher")
     app.setQuitOnLastWindowClosed(False)
