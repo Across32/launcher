@@ -40,6 +40,10 @@ jobs:
           assert window.grid.count() == len(APPS)
           assert "Across32" in window.windowTitle()
           assert window.backup_button.text().endswith("GITHUB BACKUP")
+          assert window.autostart_checkbox.isVisible() is False  # parent window not shown
+          window.show()
+          app.processEvents()
+          assert window.autostart_checkbox.isVisible(), "Setting must be visible in its own header row"
           from PySide6.QtWidgets import QPushButton
           cards = [window.grid.itemAt(i).widget() for i in range(window.grid.count())]
           assert sum(bool(card.findChildren(QPushButton, "appIcon")) for card in cards) == len(APPS)
@@ -59,7 +63,12 @@ jobs:
           window_no_tray = Launcher()
           with patch.object(QSystemTrayIcon, "isSystemTrayAvailable", return_value=False):
               window_no_tray.start_in_tray()
-              assert window_no_tray.isMinimized(), "Before Plasma tray readiness stay minimized"
+              assert not window_no_tray.isVisible(), "No window may flash during KDE login"
+              assert window_no_tray._startup_tray_pending
+          with patch.object(QSystemTrayIcon, "isSystemTrayAvailable", return_value=True):
+              window_no_tray.check_startup_tray()
+              assert not window_no_tray.isVisible(), "When panel arrives the window stays hidden"
+              assert not window_no_tray._startup_tray_pending
           window_no_tray.close()
           print("Launcher UI: OK")
           PY
