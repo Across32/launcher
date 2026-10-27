@@ -23,28 +23,35 @@ def autostart_path() -> Path:
 
 
 def entry_is_ours(path: Path) -> bool:
-    if not path.is_file():
+    if not path.is_file() or path.suffix.casefold() != ".desktop":
         return False
     try:
         parser = configparser.ConfigParser(interpolation=None, strict=False)
         parser.optionxform = str
         parser.read(path, encoding="utf-8")
         entry = parser["Desktop Entry"]
-        command = entry.get("Exec", "")
-        name = entry.get("Name", "")
+        command = entry.get("Exec", "").casefold()
+        name = entry.get("Name", "").casefold()
+        desktop_id = path.stem.casefold()
         return (
-            "across32-launcher" in command.casefold()
-            or "launcher.py" in command.casefold()
-            or "across32" in name.casefold()
+            "across32-launcher" in command
+            or "across32-launcher" in desktop_id
+            or "launcher.py" in command
+            or ("across32" in name and ("alkalmazáskezelő" in name or "launcher" in name))
         )
     except (OSError, KeyError, configparser.Error):
         return False
 
 
-def enabled() -> bool:
-    target = autostart_path()
-    if not entry_is_ours(target):
-        return False
+def matching_entries() -> list[Path]:
+    """Find KDE-created autostarts even if KDE renamed the desktop file."""
+    directory = autostart_path().parent
+    if not directory.is_dir():
+        return []
+    return sorted(path for path in directory.glob("*.desktop") if entry_is_ours(path))
+
+
+def entry_enabled(target: Path) -> bool:
     try:
         parser = configparser.ConfigParser(interpolation=None, strict=False)
         parser.read(target, encoding="utf-8")
@@ -55,6 +62,10 @@ def enabled() -> bool:
         )
     except (OSError, KeyError, configparser.Error):
         return False
+
+
+def enabled() -> bool:
+    return any(entry_enabled(path) for path in matching_entries())
 
 
 def escape_exec_path(path: Path) -> str:
@@ -107,22 +118,34 @@ def set_enabled(enable: bool, run_script: Path) -> None:
             "A meglévő automatikus indítási fájl nem az Across32 Launcherhez "
             "tartozik. Nem módosítom: " + str(target)
         )
+    matches = matching_entries()
     if enable:
-        write_atomic(target, desktop_file(run_script))
-    elif target.exists():
-        target.unlink()
+        contents = desktop_file(run_script)
+        # Rewrite KDE's existing differently named autostart entry in place.
+        # Never add a second active copy of the same launcher.
+        destination = next((p for p in matches if entry_enabled(p)), None)
+        if destination is None:
+            destination = matches[0] if matches else target
+        write_atomic(destination, contents)
+        for duplicate in matches:
+            if duplicate != destination:
+                duplicate.unlink()
+    else:
+        for path in matches:
+            path.unlink()
 
 
 def repair_existing(run_script: Path) -> bool:
-    """Upgrade an already KDE-enabled autostart entry without enabling startup.
-
-    If the user previously selected Across32 in KDE Autostart, migrate its
-    desktop Exec to --start-in-tray. Disabled entries remain disabled.
-    """
-    target = autostart_path()
-    if not enabled():
+    """Migrate already enabled KDE autostarts, preserving disabled state."""
+    matches = matching_entries()
+    active = [p for p in matches if entry_enabled(p)]
+    if not active:
         return False
-    write_atomic(target, desktop_file(run_script))
+    destination = active[0]
+    write_atomic(destination, desktop_file(run_script))
+    for duplicate in matches:
+        if duplicate != destination:
+            duplicate.unlink()
     return True
 
 
