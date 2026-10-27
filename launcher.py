@@ -128,8 +128,14 @@ QPushButton#backup {
 QPushButton#backup:hover { background: #4c7eaa; }
 QPushButton#backup:disabled { background: #35475a; color: #7d96ae; }
 QCheckBox#autostart {
-    color: #c8daeb; font-size: 11px; font-weight: 700;
-    spacing: 8px;
+    color: #eff7ff; font-size: 13px; font-weight: 800;
+    spacing: 10px;
+}
+QLabel#autostartStatus { color: #95b6d4; font-size: 11px; }
+QFrame#startupSettings {
+    background: #273a50;
+    border: 1px solid #526f8a;
+    border-radius: 8px;
 }
 QCheckBox#autostart::indicator {
     width: 17px; height: 17px;
@@ -411,15 +417,6 @@ class Launcher(QMainWindow):
         self.summary.setObjectName("summary")
         tools.addWidget(self.summary)
         tools.addStretch()
-        self.autostart_checkbox = QCheckBox("INDÍTÁS A RENDSZERREL · TÁLCÁRA")
-        self.autostart_checkbox.setObjectName("autostart")
-        self.autostart_checkbox.setToolTip(
-            "Bekapcsolva KDE-bejelentkezéskor a Launcher közvetlenül a "
-            "rendszertálcára indul; kézi megnyitáskor a főablak jelenik meg."
-        )
-        self.autostart_checkbox.setChecked(autostart_enabled())
-        self.autostart_checkbox.toggled.connect(self.change_autostart)
-        tools.addWidget(self.autostart_checkbox)
         self.filter = QComboBox()
         self.filter.addItems(["Összes alkalmazás", "Telepítve", "Nincs telepítve"])
         self.filter.currentIndexChanged.connect(self.refresh)
@@ -431,7 +428,28 @@ class Launcher(QMainWindow):
         self.search.setFixedWidth(245)
         self.search.textChanged.connect(self.refresh)
         tools.addWidget(self.search)
+
         header_layout.addLayout(tools)
+        # Own full-width settings row: the previous checkbox was squeezed
+        # between search and filter controls on narrower KDE displays.
+        startup_box = QFrame()
+        startup_box.setObjectName("startupSettings")
+        startup_row = QHBoxLayout(startup_box)
+        startup_row.setContentsMargins(15, 7, 15, 7)
+        self.autostart_checkbox = QCheckBox("INDÍTÁS A RENDSZERREL · TÁLCÁRA")
+        self.autostart_checkbox.setObjectName("autostart")
+        self.autostart_checkbox.setToolTip(
+            "KDE Plasma bejelentkezésekor kizárólag a rendszertálcán jelenjen meg."
+        )
+        self.autostart_checkbox.setChecked(autostart_enabled())
+        self.autostart_checkbox.toggled.connect(self.change_autostart)
+        startup_row.addWidget(self.autostart_checkbox)
+        startup_row.addStretch()
+        self.autostart_status = QLabel()
+        self.autostart_status.setObjectName("autostartStatus")
+        startup_row.addWidget(self.autostart_status)
+        header_layout.addWidget(startup_box)
+        self.update_autostart_status()
         layout.addWidget(header)
 
         self.scroll = QScrollArea()
@@ -494,17 +512,15 @@ class Launcher(QMainWindow):
             self.showMinimized()
 
     def start_in_tray(self):
-        """Never show the main window on the desktop during KDE autostart."""
+        """Keep the desktop clear even while the Plasma tray is starting."""
         self._startup_tray_pending = True
+        self._startup_tray_checks = 0
+        self.hide()
         if QSystemTrayIcon.isSystemTrayAvailable():
-            self.hide()
             self._startup_tray_pending = False
             return
-        # In early Plasma login, the tray may not exist yet. Keep the window
-        # minimized instead of showing it full-size; hide when panel is ready.
-        self.showMinimized()
         self._startup_tray_timer = QTimer(self)
-        self._startup_tray_timer.setInterval(1250)
+        self._startup_tray_timer.setInterval(1000)
         self._startup_tray_timer.timeout.connect(self.check_startup_tray)
         self._startup_tray_timer.start()
 
@@ -512,16 +528,30 @@ class Launcher(QMainWindow):
         if not getattr(self, "_startup_tray_pending", False):
             self._startup_tray_timer.stop()
             return
+        self._startup_tray_checks += 1
         if QSystemTrayIcon.isSystemTrayAvailable():
-            self.hide()
             self._startup_tray_pending = False
             self._startup_tray_timer.stop()
+        elif self._startup_tray_checks >= 60:
+            # Only fall back to a MINIMIZED taskbar window if the Plasma
+            # system tray is genuinely unavailable after a full minute.
+            self._startup_tray_pending = False
+            self._startup_tray_timer.stop()
+            self.showMinimized()
 
     def restore_from_tray(self):
         self._startup_tray_pending = False
+        if hasattr(self, "_startup_tray_timer"):
+            self._startup_tray_timer.stop()
         self.showNormal()
         self.raise_()
         self.activateWindow()
+
+    def update_autostart_status(self):
+        enabled = autostart_enabled()
+        self.autostart_status.setText(
+            "Aktív · csak rendszertálca" if enabled else "Kikapcsolva"
+        )
 
     def change_autostart(self, desired: bool):
         try:
@@ -533,6 +563,7 @@ class Launcher(QMainWindow):
             self.autostart_checkbox.setChecked(autostart_enabled())
             self.autostart_checkbox.blockSignals(False)
             QMessageBox.warning(self, "Automatikus indítás", str(exc))
+        self.update_autostart_status()
 
     def closeEvent(self, event):
         # Closing X is a REAL exit, never an implicit minimize-to-tray.
