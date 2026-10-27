@@ -149,6 +149,23 @@ menüjében **Megnyitás** és **Teljes bezárás** érhető el.
 ugyanez a bejegyzés látható. A felhasználói menüindítót és a rendszerindítási
 parancsot külön kezeljük, így a kézi megnyitás nem válik rejtett indítássá.
 
+A beállítás külön teljes szélességű fejlécsorban látható, nem bújik el a
+keresés és az állapotszűrő között. A legfrissebb telepítő a KDE által
+**eltérő fájlnéven** létrehozott autostart bejegyzést is felismeri, és
+az esetleges duplikált Across32 Launcher indítókat egyetlen tálcás
+bejegyzésre egyesíti. A többi alkalmazás automatikus indítását nem módosítja.
+
+Ha a KDE továbbra is korábbi teljes ablakot nyit bejelentkezéskor,
+ellenőrizd a **Rendszerbeállítások → Indítás és leállítás → Asztali munkamenet**
+beállításánál a **munkamenet-visszaállítást** is. A Plasma képes a korábban
+nyitva hagyott ablakot külön visszaállítani, még akkor is, ha az
+autostart bejegyzés már kizárólag a tálcán indul.
+
+Ha a frissítés után sem látszik az új kapcsoló, nézd meg az aktuálisan
+telepített KDE menüindító `Path=` értékét, és **azt** a Git-klónt frissítsd,
+ne egy esetleg másik mappában lévő `~/launcher` klónt.
+
+
 ## GitHub Backup – csak a privát repók
 
 A fejlécben található **⬇ GITHUB BACKUP** gomb az Across32 fiók elérhető
