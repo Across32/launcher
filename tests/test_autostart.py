@@ -72,6 +72,70 @@ class KDEAutostartTests(unittest.TestCase):
             autostart.set_enabled(True, self.script)
         self.assertEqual(path.read_text(encoding="utf-8"), existing)
 
+    def test_kde_renamed_autostart_is_migrated_in_place(self):
+        directory = autostart.autostart_path().parent
+        directory.mkdir(parents=True)
+        renamed = directory / "org.kde.Across32Application.desktop"
+        renamed.write_text(
+            "[Desktop Entry]\nType=Application\n"
+            "Name=Across32 – Alkalmazáskezelő\n"
+            "Exec=/old/launcher/run.sh\n",
+            encoding="utf-8",
+        )
+        self.assertTrue(autostart.enabled())
+        self.assertTrue(autostart.repair_existing(self.script))
+        self.assertIn("--start-in-tray", renamed.read_text(encoding="utf-8"))
+        self.assertFalse(autostart.autostart_path().exists())
+        self.assertEqual(len(list(directory.glob("*.desktop"))), 1)
+
+    def test_kde_named_autostart_is_not_duplicated_on_switch(self):
+        directory = autostart.autostart_path().parent
+        directory.mkdir(parents=True)
+        renamed = directory / "custom-kde-autostart.desktop"
+        renamed.write_text(
+            "[Desktop Entry]\nType=Application\n"
+            "Name=Across32 – Alkalmazáskezelő\n"
+            "Exec=/old/launcher/run.sh\n",
+            encoding="utf-8",
+        )
+        autostart.set_enabled(True, self.script)
+        self.assertTrue(autostart.enabled())
+        self.assertEqual(len(list(directory.glob("*.desktop"))), 1)
+        self.assertIn("--start-in-tray", renamed.read_text(encoding="utf-8"))
+        autostart.set_enabled(False, self.script)
+        self.assertFalse(renamed.exists())
+
+    def test_duplicate_kde_launcher_entries_are_normalized(self):
+        directory = autostart.autostart_path().parent
+        directory.mkdir(parents=True)
+        first = directory / "org.kde.Across32Application.desktop"
+        second = directory / "across32-launcher.desktop"
+        for target in (first, second):
+            target.write_text(
+                "[Desktop Entry]\nType=Application\n"
+                "Name=Across32 – Alkalmazáskezelő\n"
+                "Exec=/old/launcher/run.sh\n",
+                encoding="utf-8",
+            )
+        self.assertTrue(autostart.repair_existing(self.script))
+        files = list(directory.glob("*.desktop"))
+        self.assertEqual(len(files), 1)
+        self.assertIn("--start-in-tray", files[0].read_text(encoding="utf-8"))
+
+    def test_other_across32_app_does_not_count_as_launcher(self):
+        directory = autostart.autostart_path().parent
+        directory.mkdir(parents=True)
+        other = directory / "across32-player.desktop"
+        content = (
+            "[Desktop Entry]\nType=Application\n"
+            "Name=Across32 Player\nExec=/home/test/across-player\n"
+        )
+        other.write_text(content, encoding="utf-8")
+        self.assertFalse(autostart.enabled())
+        autostart.set_enabled(True, self.script)
+        self.assertTrue(other.exists())
+        self.assertEqual(other.read_text(encoding="utf-8"), content)
+
     def test_directory_and_executable_field_code_escaping(self):
         folder = self.base / 'launcher "special" 100% $'
         folder.mkdir()
