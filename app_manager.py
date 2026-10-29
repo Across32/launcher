@@ -38,6 +38,7 @@ APPS = (
     App("tankolas", "Tankolás", "Üzemanyag-fogyasztás, tankolások és szervizkiadások.", "Jármű / Költségek", "T", "#bb6866", "applications-utilities", "Tankolas.desktop", "VERSION"),
     App("gas", "Gázfogyasztás", "Gázóraállások, fogyasztás és költségek nyilvántartása.", "Otthon / Rezsi", "G", "#607fbd", "applications-utilities", "gas-tracker.desktop", "pyproject.toml"),
     App("player", "Across Player – Lejátszó", "Magyar nyelvű Full HD és 4K videólejátszó mpv-alapon, hangsáv- és feliratválasztással.", "Film / Lejátszó", "▶", "#527ca4", "applications-multimedia", "across-player.desktop", "player.py"),
+    App("csomagkezelo", "Csomagkezelő", "Telepített, AUR/külső és árva csomagok áttekintése, biztonságos eltávolítása.", "Rendszer / Csomagok", "C", "#588d9a", "system-software-install", "csomagkezelo.desktop", "csomagkezelo/__init__.py"),
 )
 BY_KEY = {app.key: app for app in APPS}
 
@@ -174,6 +175,12 @@ def source_dir(app: App) -> Path:
     known = managed_dir() / app.key
     if known.exists():
         return known
+    if app.key == "csomagkezelo":
+        # Respect the original repo when the user cloned it into ~/csomagkezelo,
+        # but only if its origin matches the exact Across32 repository.
+        historical = Path.home() / "csomagkezelo"
+        if valid_checkout(historical, app):
+            return historical
     if app.key == "player":
         return Path.home() / ".local/share/across-player"
     if app.key == "Munkak_eladasok" and not working_desktop(app):
@@ -195,6 +202,11 @@ def is_ready(app: App, folder: Path) -> bool:
         wrapper = Path.home() / ".local/bin/across-player"
         return ((folder / "player.py").is_file()
                 and wrapper.is_file() and os.access(wrapper, os.X_OK))
+    if app.key == "csomagkezelo":
+        # Its installer uses the Arch system Python, not a virtualenv.
+        # A checkout alone is not a complete KDE installation.
+        return ((folder / "main.py").is_file()
+                and (applications_dir() / "csomagkezelo.desktop").is_file())
     executable = ".venv/bin/gas-tracker" if app.key == "gas" else ".venv/bin/python"
     return (folder / executable).is_file()
 
@@ -219,6 +231,9 @@ def version(app: App) -> str:
         return "—"
     if app.key in ("Movie_database", "tankolas"):
         return raw.strip()[:24]
+    if app.key == "csomagkezelo":
+        match = re.search(r'(?m)^__version__\s*=\s*["\']([^"\']+)["\']', raw)
+        return match.group(1) if match else "—"
     if app.key in ("relief", "gas"):
         match = re.search(r"(?m)^version\s*=\s*['\"]([^'\"]+)['\"]", raw)
     elif app.key == "laser":
