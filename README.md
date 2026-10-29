@@ -1,6 +1,6 @@
 # Across32 Launcher – EndeavourOS / KDE Plasma
 
-Grafikus, magyar nyelvű alkalmazáskezelő az Across32 GitHub-fiók hét projektjéhez.
+Grafikus, magyar nyelvű alkalmazáskezelő az Across32 GitHub-fiók nyolc projektjéhez.
 A felület külön kártyán jeleníti meg az alkalmazást, a rövid leírást, a helyi verziót és Git-revíziót,
 valamint a **Telepítés / Megnyitás / Frissítés** gombokat.
 
@@ -13,6 +13,7 @@ valamint a **Telepítés / Megnyitás / Frissítés** gombokat.
 | Tankolás | `tankolas` | Tankolás, fogyasztás és szerviz |
 | Gázfogyasztás | `gas` | Gázfogyasztás és rezsiköltségek |
 | Across Player – Lejátszó | `player` | Magyar nyelvű 4K/Full HD videólejátszó (mpv, feliratok, hangsávok) |
+| Csomagkezelő | `csomagkezelo` | Pacman, AUR/külső csomagok és árva függőségek áttekintése és törlése |
 
 ## 1. A launcher telepítése
 
@@ -62,6 +63,34 @@ valószínűleg más forrásmappából indítottál egy másik klónt.
 
 A `bash install.sh` telepítéskor kiírja a verziót, a Git SHA-t, a forrásmappát,
 a létrehozott `.desktop` fájlt és a pontos indítási parancsot is.
+
+## Csomagkezelő – a nyolcadik alkalmazás (Launcher v1.3.0)
+
+Az `Across32/csomagkezelo` privát GitHub-repó ugyanolyan alkalmazáskártyát kapott,
+mint a korábbi programok:
+
+- **Telepítés / Megnyitás / Frissítés:** a GitHub-repót klónozza vagy biztonságosan
+  frissíti, majd az eredeti `install.sh` telepítőt használja. A program
+  az EndeavourOS rendszerszintű `/usr/bin/python`, `pyside6` és `qt6-svg`
+  csomagjaival működik, nem igényel a Launcher által létrehozott külön venv-et.
+- **Valódi verzió:** a forrás `csomagkezelo/__init__.py` fájljában szereplő
+  `__version__` értékből. A helyi Git-azonosító is megjelenik.
+- **Frissítési előzmények:** a projekt valós Git commitjaiból és a meglévő
+  changelogból (ha van). A verziót a Gitben tárolt `__version__` fájlból
+  is felismeri, nem talál ki verziószámokat.
+- **Ikon:** az eredeti `csomagkezelo.desktop` KDE ikon, amely a Launcher
+  kártyáján tetszőleges képre cserélhető és újraindítás után megmarad.
+- **Meglévő telepítés:** a KDE `csomagkezelo.desktop` fájl alapján felismeri
+  az eredeti Git-klónt; ugyanígy a `~/csomagkezelo` mappából is, ha annak
+  Git-originje valóban az `Across32/csomagkezelo` repóra mutat.
+- **GitHub Backup:** a privát Csomagkezelő repo kötelezően ellenőrzött mentése
+  a `/Volumes/Data/Github backup/` mappába két, állandó nevű fájlban:
+  `Across32__csomagkezelo.git/` és `Across32__csomagkezelo.bundle`.
+  Az új sikeres mentés felülírja a régi párt, duplikáció nélkül.
+
+**Fontos:** a GitHub Backup a forráskódot menti, nem a számítógép telepített
+csomagjait vagy a pacman adatbázisát. A Csomagkezelő programban egy csomag
+törlése külön jóváhagyást és rendszergazdai hitelesítést igényel.
 
 ## 2. Privát repók hitelesítése
 
@@ -208,10 +237,12 @@ Across32__relief.git/       # teljes, bare Git-tükör / commit- és ágtörtén
 Across32__relief.bundle     # önálló, ellenőrzött Git bundle
 Across32__player.git/       # Across Player – teljes Git-tükör
 Across32__player.bundle     # Across Player – ellenőrzött Git bundle
+Across32__csomagkezelo.git/ # Csomagkezelő – teljes Git-tükör
+Across32__csomagkezelo.bundle # Csomagkezelő – ellenőrzött Git bundle
 ```
 
 A `player` projekt GitHub-repóneve **`Across32/player`** (az alkalmazás neve: Across Player).
-A backup külön ellenőrzi a privát `player` repó jelenlétét a listában,
+A backup külön ellenőrzi a privát `player` és `csomagkezelo` repók jelenlétét a listában,
 és ha a normál felsorolásból hiányzik, a GitHub CLI-vel külön megvizsgálja.
 Csak privátként ellenőrzött repót ment; sikertelen ellenőrzésnél hibaüzenettel leáll,
 nem jelzi tévesen teljesnek a mentést.
