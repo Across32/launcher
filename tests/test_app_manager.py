@@ -18,10 +18,10 @@ class ManagerTests(unittest.TestCase):
         self.env.start()
         self.addCleanup(self.env.stop)
 
-    def test_seven_repo_keys(self):
+    def test_eight_repo_keys(self):
         self.assertEqual(
             [app.key for app in m.APPS],
-            ["relief", "Movie_database", "Munkak_eladasok", "laser", "tankolas", "gas", "player"],
+            ["relief", "Movie_database", "Munkak_eladasok", "laser", "tankolas", "gas", "player", "csomagkezelo"],
         )
 
     def test_git_origin_allowlist(self):
@@ -147,6 +147,59 @@ class ManagerTests(unittest.TestCase):
             "sudo", "pacman", "-S", "--needed", "pyside6", "xorg-xwayland"
         )
         execute.assert_any_call("bash", str(clone / "install.sh"), cwd=clone)
+
+    def test_csomagkezelo_repository_and_kde_launcher(self):
+        app = m.BY_KEY["csomagkezelo"]
+        self.assertEqual(app.desktop_pattern, "csomagkezelo.desktop")
+        self.assertEqual(app.version_file, "csomagkezelo/__init__.py")
+        self.assertEqual(m.repo_url(app), "https://github.com/Across32/csomagkezelo.git")
+        self.assertTrue(m.same_remote("git@github.com:Across32/csomagkezelo.git", app))
+        self.assertFalse(m.same_remote("https://github.com/other/csomagkezelo.git", app))
+
+    def test_csomagkezelo_version_from_python_init(self):
+        app = m.BY_KEY["csomagkezelo"]
+        source = m.managed_dir() / app.key
+        init = source / app.version_file
+        init.parent.mkdir(parents=True)
+        init.write_text('"""Package app."""\n__version__ = "0.1.0"\n', encoding="utf-8")
+        self.assertEqual(m.version(app), "0.1.0")
+
+    def test_csomagkezelo_existing_kde_desktop_recovers_checkout(self):
+        app = m.BY_KEY["csomagkezelo"]
+        clone = self.home / "source code" / "csomagkezelo"
+        clone.mkdir(parents=True)
+        (clone / ".git").mkdir()
+        (clone / "main.py").write_text("# app", encoding="utf-8")
+        desktop = m.applications_dir() / "csomagkezelo.desktop"
+        desktop.parent.mkdir(parents=True)
+        desktop.write_text(
+            "[Desktop Entry]\nType=Application\n"
+            "Exec=" + sys.executable + " " + __import__("shlex").quote(str(clone / "main.py")) + "\n",
+            encoding="utf-8",
+        )
+        with patch.object(m, "valid_checkout", side_effect=lambda path, _spec: path == clone):
+            self.assertEqual(m.root_from_desktop(app), clone)
+            self.assertTrue(m.installed(app))
+
+    def test_csomagkezelo_user_checkout_is_reused(self):
+        app = m.BY_KEY["csomagkezelo"]
+        clone = self.home / "csomagkezelo"
+        clone.mkdir()
+        with patch.object(m.Path, "home", return_value=self.home), \
+             patch.object(m, "valid_checkout", side_effect=lambda path, _spec: path == clone):
+            self.assertEqual(m.source_dir(app), clone)
+
+    def test_csomagkezelo_install_uses_its_existing_installer(self):
+        app = m.BY_KEY["csomagkezelo"]
+        clone = self.home / "source"
+        clone.mkdir()
+        (clone / "install.sh").write_text("#!/bin/sh\n", encoding="utf-8")
+        with patch.object(m, "ensure_source", return_value=clone), \
+             patch.object(m, "installed", return_value=True), \
+             patch.object(m.shutil, "which", return_value="/usr/bin/git"), \
+             patch.object(m, "run_command") as execute:
+            m.install_or_update(app, "install")
+        execute.assert_called_once_with("bash", str(clone / "install.sh"), cwd=clone)
 
     def test_github_url(self):
         self.assertEqual(
