@@ -18,9 +18,10 @@ from datetime import datetime, timezone
 
 BACKUP_ROOT = Path("/Volumes/Data/Github backup")
 OWNER = "Across32"
-# Across Player is a required private repository. The normal private-repo
-# enumeration already includes it; this guard detects incomplete API listings.
-REQUIRED_PRIVATE_REPOS = ("player",)
+# Both integrated tools are private GitHub repositories. The ordinary
+# private-repository enumeration includes them, but ensure that an incomplete
+# GitHub CLI listing cannot silently skip either repository.
+REQUIRED_PRIVATE_REPOS = ("player", "csomagkezelo")
 SAFE_REPO = re.compile(r"^[A-Za-z0-9_.-]{1,100}$")
 
 
