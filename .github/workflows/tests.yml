@@ -36,12 +36,12 @@ jobs:
           from app_manager import APPS
           app = QApplication([])
           window = Launcher()
-          assert len(APPS) == 7
+          assert len(APPS) == 8
           assert window.grid.count() == len(APPS)
           assert "Across32" in window.windowTitle()
-          assert "v1.2.0" in window.windowTitle()
+          assert "v1.3.0" in window.windowTitle()
           assert "Git" in window.windowTitle()
-          assert "v1.2.0" in window.build_badge.text()
+          assert "v1.3.0" in window.build_badge.text()
           assert window.backup_button.text().endswith("GITHUB BACKUP")
           assert window.autostart_checkbox.isVisible() is False  # parent window not shown
           window.show()
@@ -49,6 +49,7 @@ jobs:
           assert window.autostart_checkbox.isVisible(), "Setting must be visible in its own header row"
           from PySide6.QtWidgets import QPushButton
           cards = [window.grid.itemAt(i).widget() for i in range(window.grid.count())]
+          assert any("Csomagkezelő" in card.findChild(__import__("PySide6.QtWidgets", fromlist=["QLabel"]).QLabel, "appName").text() for card in cards), "Csomagkezelő must have its own card"
           assert sum(bool(card.findChildren(QPushButton, "appIcon")) for card in cards) == len(APPS)
           assert sum(bool(card.findChildren(QPushButton, "history")) for card in cards) == len(APPS)
           window.minimize_to_tray()
