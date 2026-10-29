@@ -102,25 +102,28 @@ class NewFeatureTests(unittest.TestCase):
             '[{"nameWithOwner":"Across32/relief","isPrivate":true},'
             '{"nameWithOwner":"Across32/public","isPrivate":false},'
             '{"nameWithOwner":"Across32/laser","isPrivate":true},'
-            '{"nameWithOwner":"Across32/player","isPrivate":true}]'
+            '{"nameWithOwner":"Across32/player","isPrivate":true},'
+            '{"nameWithOwner":"Across32/csomagkezelo","isPrivate":true}]'
         )
         with patch.object(backup.shutil, "which", return_value="/usr/bin/gh"), \
              patch.object(backup, "command", side_effect=["", data]) as command:
-            self.assertEqual(backup.private_repositories(), ["laser", "player", "relief"])
+            self.assertEqual(backup.private_repositories(), ["csomagkezelo", "laser", "player", "relief"])
             self.assertEqual(command.call_count, 2)  # No duplicate player lookup.
 
     def test_player_backup_is_added_when_private_repo_listing_omits_it(self):
-        listing = '[{"nameWithOwner":"Across32/laser","isPrivate":true}]'
+        listing = ('[{"nameWithOwner":"Across32/laser","isPrivate":true},'
+                   '{"nameWithOwner":"Across32/csomagkezelo","isPrivate":true}]')
         player = '{"nameWithOwner":"Across32/player","isPrivate":true}'
         with patch.object(backup.shutil, "which", return_value="/usr/bin/gh"), \
              patch.object(backup, "command", side_effect=["", listing, player]) as cmd:
             repos = backup.private_repositories()
-        self.assertEqual(repos, ["laser", "player"])
+        self.assertEqual(repos, ["csomagkezelo", "laser", "player"])
         self.assertEqual(cmd.call_args.args[:5],
                          ("gh", "repo", "view", "Across32/player", "--json"))
 
     def test_player_backup_rejects_unverified_public_or_inaccessible_repo(self):
-        listing = '[{"nameWithOwner":"Across32/laser","isPrivate":true}]'
+        listing = ('[{"nameWithOwner":"Across32/laser","isPrivate":true},'
+                   '{"nameWithOwner":"Across32/csomagkezelo","isPrivate":true}]')
         public = '{"nameWithOwner":"Across32/player","isPrivate":false}'
         with patch.object(backup.shutil, "which", return_value="/usr/bin/gh"), \
              patch.object(backup, "command", side_effect=["", listing, public]):
@@ -132,6 +135,47 @@ class NewFeatureTests(unittest.TestCase):
             mirror, bundle = backup.names("player")
         self.assertEqual(mirror, self.root / "Across32__player.git")
         self.assertEqual(bundle, self.root / "Across32__player.bundle")
+
+    def test_csomagkezelo_is_retrieved_if_private_list_omits_it(self):
+        listing = '[{"nameWithOwner":"Across32/player","isPrivate":true}]'
+        package = '{"nameWithOwner":"Across32/csomagkezelo","isPrivate":true}'
+        with patch.object(backup.shutil, "which", return_value="/usr/bin/gh"), \
+             patch.object(backup, "command", side_effect=["", listing, package]) as cmd:
+            self.assertEqual(backup.private_repositories(), ["csomagkezelo", "player"])
+            self.assertEqual(cmd.call_args.args[:5],
+                             ("gh", "repo", "view", "Across32/csomagkezelo", "--json"))
+
+    def test_csomagkezelo_requires_verified_private_visibility(self):
+        listing = '[{"nameWithOwner":"Across32/player","isPrivate":true}]'
+        public = '{"nameWithOwner":"Across32/csomagkezelo","isPrivate":false}'
+        with patch.object(backup.shutil, "which", return_value="/usr/bin/gh"), \
+             patch.object(backup, "command", side_effect=["", listing, public]):
+            with self.assertRaisesRegex(RuntimeError, "nem igazolható privát"):
+                backup.private_repositories()
+
+    def test_csomagkezelo_fixed_backup_paths_no_duplicate_files(self):
+        with patch.object(backup, "BACKUP_ROOT", self.root):
+            mirror, bundle = backup.names("csomagkezelo")
+            self.assertEqual(mirror, self.root / "Across32__csomagkezelo.git")
+            self.assertEqual(bundle, self.root / "Across32__csomagkezelo.bundle")
+
+            def emulate(*argv, capture=False, timeout=None):
+                if "clone" in argv:
+                    Path(argv[-1]).mkdir()
+                    (Path(argv[-1]) / "current").write_text("new", encoding="utf-8")
+                if "bundle" in argv and "create" in argv:
+                    Path(argv[argv.index("create") + 1]).write_bytes(b"BUNDLE")
+                if "rev-parse" in argv:
+                    return "1" * 40 + "\n"
+                return ""
+
+            with patch.object(backup, "command", side_effect=emulate):
+                for _ in range(2):
+                    backup.backup_one("csomagkezelo")
+            self.assertEqual(len(list(self.root.glob("Across32__csomagkezelo.bundle"))), 1)
+            self.assertEqual(len(list(self.root.glob("Across32__csomagkezelo.git"))), 1)
+            self.assertEqual((mirror / "current").read_text(), "new")
+            self.assertEqual(bundle.read_bytes(), b"BUNDLE")
 
     def test_one_good_backup_replaces_old_two_fixed_names(self):
         with patch.object(backup, "BACKUP_ROOT", self.root):
