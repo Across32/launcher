@@ -25,7 +25,7 @@ TIMEOUT = 18
 RELEASE_RE = re.compile(r"(?m)^#{2,3}\s+(v?\d+(?:\.\d+){0,3})\b([^\n]*)")
 DATE_RE = re.compile(r"\b(20\d\d[-.]\d\d[-.]\d\d)\b")
 VERSION_IN_MESSAGE_RE = re.compile(r"(?i)(?:^|\s|:)(v?\d+\.\d+(?:\.\d+){0,2}|v\d{2,4})(?=\s|:|\b)")
-FILE_VERSION_RE = re.compile(r'(?m)^\s*(?:version|VERSION|UI_VERSION)\s*=\s*["\']([^"\']+)')
+FILE_VERSION_RE = re.compile(r'(?m)^\s*(?:version|VERSION|UI_VERSION|__version__)\s*=\s*["\']([^"\']+)')
 CHANGELOG_PATHS = ("CHANGELOG.md", "docs/CHANGELOG.md", "CHANGES.md")
 
 
