@@ -38,6 +38,39 @@ git pull --ff-only
 bash install.sh
 ```
 
+## Új verzió figyelése – Launcher v1.4.0
+
+A Launcher induláskor, a fejléc **↻** frissítőgombjára kattintva,
+sikeres telepítés/frissítés után és 30 percenként ellenőrzi a nyolc
+Across32 GitHub-repó legújabb kiadását. Minden ellenőrzés **külön
+háttérfolyamatban** történik; a Qt grafikus felület nem vár a hálózatra.
+
+A program helyi verziószámát összehasonlítja a GitHub \`main\` ágában
+tárolt eredeti verziófájllal. A \`0.8.50\` és \`0.8.9\`, illetve a
+\`2026.10.24-95\` és \`2026.10.25-96\` kiadásokat **számszerűen**
+hasonlítja össze. Ha valóban újabb távoli kiadás van, a meglévő
+**zöld „TELEPÍTVE” mellett piros „● FRISSÍTÉS ELÉRHETŐ”** állapot
+jelenik meg. A jelzés az alkalmazás következő újraindításakor vagy
+hálózati kimaradás esetén is megmarad. Csak akkor tűnik el,
+amikor a helyileg ténylegesen telepített kiadás eléri vagy meghaladja
+a GitHubon utoljára ellenőrzött verziót.
+
+A privát GitHub-repókhoz a korábban már beállított
+\`gh auth login\` hozzáférés szükséges. Sikeres lekéréseknél a legutóbbi
+távoli verziót a
+\`~/.cache/across32-launcher/remote_versions.json\` fájl tárolja.
+Hiba vagy offline állapot esetén a korábbi ismert frissítésjelzést
+nem töröljük és nem jelezünk hamis új verziót. Az Across Player
+repóban nincs számozott verziófájl, ezért **csak ennél**
+a tényleges Git-revízió különbségét ellenőrizzük.
+
+**Munkák és eladások verziószám:** a Git-klón eltérhet a futtatott
+telepítéstől, mert a program saját \`install.sh\` fájlja másik könyvtárba
+másolhatja a \`main.py\` fájlt. A kártya mostantól a KDE-indítóból
+felismert, **ténylegesen telepített \`main.py\` fájl
+\`UI_VERSION\`** értékét mutatja; ha ez nem található, a forrás
+verziószámát használja.
+
 ## A futó Launcher pontos verziójának ellenőrzése
 
 A Launcher saját kiadási verziószáma a gyökérben lévő `VERSION` fájlban van.
