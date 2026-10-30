@@ -147,6 +147,7 @@ QCheckBox#autostart {
     spacing: 10px;
 }
 QLabel#autostartStatus { color: #95b6d4; font-size: 11px; }
+QLabel#updatesStatus { color: #a8c8df; font-size: 12px; font-weight: 600; }
 QFrame#startupSettings {
     background: #273a50;
     border: 1px solid #526f8a;
@@ -403,6 +404,12 @@ class Launcher(QMainWindow):
         self.update_records = read_cache()
         self.update_process = None
         self._update_output = b""
+        self._scan_results = {}
+        self._scan_issue = ""
+        self._manual_update_summary = False
+        self._scan_watchdog = QTimer(self)
+        self._scan_watchdog.setSingleShot(True)
+        self._scan_watchdog.timeout.connect(self.update_scan_timeout)
         self.setup_tray()
 
         root = QWidget()
@@ -488,6 +495,16 @@ class Launcher(QMainWindow):
         startup_row.addWidget(self.autostart_status)
         header_layout.addWidget(startup_box)
         self.update_autostart_status()
+        self.updates_status = QLabel(
+            "GitHub verzióellenőrzés: korábbi adatok betöltve · ellenőrzés indul…"
+        )
+        self.updates_status.setObjectName("updatesStatus")
+        self.updates_status.setToolTip(
+            "A fenti ↻ gombbal manuálisan ellenőrizheted a 8 repót. "
+            "Az ellenőrzés végén részletes eredmény jelenik meg."
+        )
+        self.updates_status.setWordWrap(True)
+        header_layout.addWidget(self.updates_status)
         layout.addWidget(header)
 
         self.scroll = QScrollArea()
@@ -612,12 +629,29 @@ class Launcher(QMainWindow):
         self.update_autostart_status()
 
     def manual_refresh(self):
+        """Refresh local versions AND request an explicit eight-repo report."""
         self.refresh()
-        self.check_for_updates()
+        self.check_for_updates(manual=True)
 
-    def check_for_updates(self):
-        if self.update_process is not None or os.environ.get("ACROSS32_DISABLE_UPDATE_CHECK") == "1":
+    def check_for_updates(self, manual: bool = False):
+        if os.environ.get("ACROSS32_DISABLE_UPDATE_CHECK") == "1":
+            if manual:
+                self.updates_status.setText("GitHub ellenőrzés a tesztkörnyezetben kikapcsolva.")
             return
+        if manual:
+            self._manual_update_summary = True
+        if self.update_process is not None:
+            self.updates_status.setText(
+                f"GitHub: ellenőrzés folyamatban… "
+                f"({len(self._scan_results)}/{len(APPS)} repó)"
+            )
+            return
+        self._scan_results = {}
+        self._scan_issue = ""
+        self._update_output = b""
+        self.updates_status.setText(
+            f"GitHub: verziók ellenőrzése folyamatban… (0/{len(APPS)} repó)"
+        )
         worker = QProcess(self)
         worker.setProgram(sys.executable)
         worker.setArguments([
@@ -627,8 +661,53 @@ class Launcher(QMainWindow):
         worker.finished.connect(self.update_scan_finished)
         worker.errorOccurred.connect(self.update_scan_error)
         self.update_process = worker
-        self._update_output = b""
         worker.start()
+        # External GitHub calls must not hold an invisible process forever.
+        self._scan_watchdog.start(120_000)
+
+    def consume_update_result(self, record) -> bool:
+        """Accept one backend event, including failure; preserve old updates."""
+        if not isinstance(record, dict):
+            return False
+        key = record.get("key")
+        if key not in {app.key for app in APPS}:
+            return False
+        if (record.get("ok") is True
+                and isinstance(record.get("remote_version"), str)
+                and isinstance(record.get("remote_sha"), str)):
+            self.update_records[key] = {
+                "remote_version": record["remote_version"],
+                "remote_sha": record["remote_sha"],
+            }
+            self._scan_results[key] = {"ok": True}
+            return True
+        if record.get("ok") is False:
+            self._scan_results[key] = {
+                "ok": False,
+                "error": str(record.get("error") or "Ismeretlen GitHub-hiba")[:320],
+            }
+        return False
+
+    def checked_update_count(self) -> int:
+        return sum(
+            bool(installed(spec) and update_available(
+                spec, version(spec), self.update_records.get(spec.key, {})
+            )) for spec in APPS
+        )
+
+    def show_scan_progress(self):
+        finished = len(self._scan_results)
+        errors = sum(item.get("ok") is False for item in self._scan_results.values())
+        self.updates_status.setText(
+            f"GitHub: {finished}/{len(APPS)} repó ellenőrizve "
+            f"· {self.checked_update_count()} frissítés elérhető"
+            + (f" · {errors} hiba" if errors else "")
+        )
+        if errors:
+            self.updates_status.setToolTip(
+                "Az ↻ gombbal részletes hibaüzenetet kérhetsz. "
+                "A legutóbb sikeresen lekért verzióadatok megmaradtak."
+            )
 
     def read_update_results(self):
         worker = self.update_process
@@ -639,38 +718,94 @@ class Launcher(QMainWindow):
         while b"\n" in self._update_output:
             line, self._update_output = self._update_output.split(b"\n", 1)
             try:
-                record = json.loads(line)
+                record = json.loads(line.decode("utf-8"))
             except (UnicodeDecodeError, ValueError):
                 continue
-            key = record.get("key")
-            if (record.get("ok") is True and key in {app.key for app in APPS}
-                    and isinstance(record.get("remote_version"), str)
-                    and isinstance(record.get("remote_sha"), str)):
-                self.update_records[key] = {
-                    "remote_version": record["remote_version"],
-                    "remote_sha": record["remote_sha"],
-                }
-                modified = True
+            modified |= self.consume_update_result(record)
         if modified:
             self.refresh()
+        self.show_scan_progress()
 
-    def update_scan_finished(self, _code, _status):
-        self.read_update_results()
+    def update_scan_timeout(self):
         worker = self.update_process
+        if worker and worker.state() != QProcess.ProcessState.NotRunning:
+            self._scan_issue = "GitHub ellenőrzés: 120 másodperces időtúllépés."
+            worker.kill()
+
+    def scan_report(self) -> str:
+        """Show the exact local and remote versions and concrete errors."""
+        report = [
+            f"GitHub verzióellenőrzés – {len(self._scan_results)}/{len(APPS)} repó",
+            "",
+        ]
+        for spec in APPS:
+            local = version(spec)
+            result = self._scan_results.get(spec.key, {})
+            cached = self.update_records.get(spec.key, {})
+            if result.get("ok"):
+                remote = cached.get("remote_version") or (
+                    "Git " + cached.get("remote_sha", "")[:8]
+                )
+                pending = bool(installed(spec) and
+                               update_available(spec, local, cached))
+                status = "FRISSÍTÉS ELÉRHETŐ" if pending else "nincs újabb verzió"
+                report.append(f"{spec.title}: {local} → {remote} ({status})")
+            else:
+                reason = result.get("error") or (
+                    self._scan_issue or "Nem érkezett válasz a GitHubtól."
+                )
+                report.append(f"{spec.title}: {local} – HIBA: {reason}")
+        if self._scan_issue:
+            report.extend(["", self._scan_issue])
+        return "\n".join(report)
+
+    def update_scan_finished(self, code, _status):
+        worker = self.update_process
+        if worker is None:
+            return
+        self._scan_watchdog.stop()
+        self.read_update_results()
+        self._scan_issue = self._scan_issue or (
+            bytes(worker.readAllStandardError()).decode("utf-8", "replace").strip()[:400]
+            if code != 0 else ""
+        )
+        if code and not self._scan_issue:
+            self._scan_issue = f"Az ellenőrző folyamat hibakóddal állt le: {code}."
+        report = self.scan_report()
+        self.show_scan_progress()
+        errors = sum(item.get("ok") is False for item in self._scan_results.values())
+        if errors or len(self._scan_results) != len(APPS) or self._scan_issue:
+            self.updates_status.setText(
+                f"GitHub: {len(self._scan_results)}/{len(APPS)} repó ellenőrizve "
+                f"· {errors} lekérési hiba · ↻ részletek"
+            )
+            self.updates_status.setToolTip(report)
+        else:
+            self.show_scan_progress()
         self.update_process = None
-        if worker:
-            worker.deleteLater()
+        self._update_output = b""
+        worker.deleteLater()
+        if self._manual_update_summary:
+            self._manual_update_summary = False
+            if errors or self._scan_issue or len(self._scan_results) != len(APPS):
+                QMessageBox.warning(self, "GitHub frissítésellenőrzés – hiba", report)
+            else:
+                QMessageBox.information(self, "GitHub frissítésellenőrzés", report)
 
     def update_scan_error(self, _error):
         worker = self.update_process
-        if worker and worker.state() == QProcess.ProcessState.NotRunning:
-            # Do not erase the last known update warning on an offline/error
-            # scan. The remote-version cache remains available at next start.
-            self.update_process = None
-            worker.deleteLater()
+        if not worker:
+            return
+        self._scan_issue = (
+            "Az ellenőrző nem indítható: " + worker.errorString()
+        )
+        if worker.state() == QProcess.ProcessState.NotRunning:
+            # FailedToStart doesn't always emit QProcess.finished.
+            self.update_scan_finished(-1, QProcess.ExitStatus.CrashExit)
 
     def closeEvent(self, event):
         # Closing X is a REAL exit, never an implicit minimize-to-tray.
+        self._scan_watchdog.stop()
         if self.update_process:
             self.update_process.kill()
             self.update_process.waitForFinished(1200)
