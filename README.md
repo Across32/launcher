@@ -38,6 +38,23 @@ git pull --ff-only
 bash install.sh
 ```
 
+## Olvasható GitHub-frissítésjelentés – v1.4.2
+
+Kijavítva a KDE Plasma sötét témával előforduló hiba, amelynél a
+\`QMessageBox\` szövege sötét maradt a sötét háttéren. A **↻**
+manuális verzióellenőrzés eredménye ezentúl saját, egységes
+szürkés-kék párbeszédablakban jelenik meg:
+
+- világos (#eef6ff), jól olvasható jelentésszöveg és címsor;
+- görgethető, sorokra tördelő, kijelölhető szövegmező mind a 8 repóhoz;
+- **JELENTÉS MÁSOLÁSA** gomb a teljes eredmény vágólapra másolásához;
+- **BEZÁRÁS** gomb; a hibás és a sikeres vizsgálat ugyanezt az ablakot használja.
+
+Az alkalmazáskártyák, a verziófigyelés háttere, valamint a korábban
+felismert piros frissítési jelzések működése változatlan. Az új ablak
+megjelenését, explicit világos szövegszínét és másolását automatikus
+Qt-regressziós tesztek ellenőrzik.
+
 ## GitHub-verziófigyelés és hibajelzés – v1.4.1
 
 A fejléc alatti **GitHub verzióellenőrzés** sor azonnal jelzi, ha
