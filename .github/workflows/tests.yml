@@ -41,9 +41,9 @@ jobs:
           assert len(APPS) == 8
           assert window.grid.count() == len(APPS)
           assert "Across32" in window.windowTitle()
-          assert "v1.4.1" in window.windowTitle()
+          assert "v1.4.2" in window.windowTitle()
           assert "Git" in window.windowTitle()
-          assert "v1.4.1" in window.build_badge.text()
+          assert "v1.4.2" in window.build_badge.text()
           assert window.backup_button.text().endswith("GITHUB BACKUP")
           assert window.autostart_checkbox.isVisible() is False  # parent window not shown
           window.show()
