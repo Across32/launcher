@@ -54,12 +54,13 @@ jobs:
           assert sum(bool(card.findChildren(QPushButton, "appIcon")) for card in cards) == len(APPS)
           assert sum(bool(card.findChildren(QPushButton, "history")) for card in cards) == len(APPS)
           assert window.update_process is None
-          from update_checker import update_available
-          from app_manager import BY_KEY
+          from unittest.mock import patch
+          from PySide6.QtWidgets import QLabel
           window.update_records["laser"] = {"remote_version": "999.0.0", "remote_sha": ""}
-          window.refresh()
-          cards = [window.grid.itemAt(i).widget() for i in range(window.grid.count())]
-          assert sum(bool(card.findChildren(__import__("PySide6.QtWidgets", fromlist=["QLabel"]).QLabel, "updateAvailable")) for card in cards) == 1
+          with patch("launcher.installed", return_value=True), patch("launcher.version", return_value="0.8.10"):
+              window.refresh()
+              cards = [window.grid.itemAt(i).widget() for i in range(window.grid.count())]
+              assert sum(bool(card.findChildren(QLabel, "updateAvailable")) for card in cards) == 1
           window.update_records["laser"] = {"remote_version": "0.0.0", "remote_sha": ""}
           window.refresh()
           window.minimize_to_tray()
