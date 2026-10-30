@@ -30,6 +30,7 @@ jobs:
       - name: Offscreen UI smoke
         env:
           QT_QPA_PLATFORM: offscreen
+          ACROSS32_DISABLE_UPDATE_CHECK: '1'
         run: |
           python - <<'PY'
           from PySide6.QtWidgets import QApplication
@@ -54,6 +55,16 @@ jobs:
           assert sum(bool(card.findChildren(QPushButton, "appIcon")) for card in cards) == len(APPS)
           assert sum(bool(card.findChildren(QPushButton, "history")) for card in cards) == len(APPS)
           assert window.update_process is None
+          assert window.updates_status.objectName() == "updatesStatus"
+          assert "GitHub" in window.updates_status.text()
+          assert window.consume_update_result({
+              "key": "laser", "ok": False, "error": "HTTP 401: Requires authentication"
+          }) is False
+          assert "HTTP 401" in window.scan_report()
+          window.show_scan_progress()
+          assert "1/8" in window.updates_status.text()
+          assert "1 hiba" in window.updates_status.text()
+          window._scan_results.clear()
           from unittest.mock import patch
           from PySide6.QtWidgets import QLabel
           window.update_records["laser"] = {"remote_version": "999.0.0", "remote_sha": ""}
