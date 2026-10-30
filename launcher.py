@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import json
+import os
 import shlex
 import shutil
 import sys
@@ -21,6 +22,7 @@ from app_manager import APPS, App, installed, open_application, repo_url, revisi
 from app_icons import delete_icon, save_icon, selected_icon
 from autostart import enabled as autostart_enabled, set_enabled as set_autostart_enabled
 from version_info import build_label, title_text
+from update_checker import read_cache, update_available
 
 
 STYLE = """
@@ -67,6 +69,9 @@ QLabel#appName { color: #eff5fc; font-size: 20px; font-weight: 800; }
 QLabel#category { color: #b0c0d1; font-size: 12px; }
 QLabel#description { color: #c7d5e3; font-size: 13px; }
 QLabel#status { font-size: 11px; font-weight: 700; }
+QLabel#updateAvailable {
+    font-size: 11px; font-weight: 800; color: #ff747b;
+}
 QLabel#version { color: #95abc1; font-size: 11px; }
 QLineEdit, QComboBox {
     background: #324458;
@@ -175,7 +180,8 @@ QMessageBox, QFileDialog { background: #243449; color: #e7eef6; }
 
 
 class AppCard(QFrame):
-    def __init__(self, spec: App, active: bool, busy: bool, parent: "Launcher"):
+    def __init__(self, spec: App, active: bool, busy: bool, parent: "Launcher",
+                 needs_update: bool = False, latest_version: str = ""):
         super().__init__()
         self.setObjectName("card")
         self.setMinimumWidth(310)
@@ -234,7 +240,20 @@ class AppCard(QFrame):
         badge.setObjectName("status")
         badge.setStyleSheet("color: #ffd18c;" if busy else
                             ("color: #80d5b3;" if active else "color: #a6b5c5;"))
-        outer.addWidget(badge)
+        status_row = QHBoxLayout()
+        status_row.setSpacing(12)
+        status_row.addWidget(badge)
+        if active and needs_update:
+            warning = QLabel("●  FRISSÍTÉS ELÉRHETŐ")
+            warning.setObjectName("updateAvailable")
+            warning.setToolTip(
+                "Új kiadás a GitHubon: "
+                + (latest_version or "új Git-revízió")
+                + ". A jelzés a legújabb változat telepítéséig megmarad."
+            )
+            status_row.addWidget(warning)
+        status_row.addStretch()
+        outer.addLayout(status_row)
 
         local_version = version(spec)
         short_sha = revision(spec)
@@ -381,6 +400,9 @@ class Launcher(QMainWindow):
         self.backup_process = None
         self.histories = []
         self.tray = None
+        self.update_records = read_cache()
+        self.update_process = None
+        self._update_output = b""
         self.setup_tray()
 
         root = QWidget()
@@ -424,7 +446,7 @@ class Launcher(QMainWindow):
         refresh.setObjectName("refresh")
         refresh.setFixedSize(40, 36)
         refresh.setToolTip("Telepített alkalmazások újraellenőrzése")
-        refresh.clicked.connect(self.refresh)
+        refresh.clicked.connect(self.manual_refresh)
         head.addWidget(refresh)
         header_layout.addLayout(head)
 
@@ -492,6 +514,14 @@ class Launcher(QMainWindow):
         self.timer.timeout.connect(self.refresh_if_running)
         self.timer.start()
         self.refresh()
+        # Network lookups are performed by a separate subprocess, not in
+        # QMainWindow.refresh() or on the Qt UI thread.
+        self.update_timer = QTimer(self)
+        self.update_timer.setInterval(30 * 60 * 1000)
+        self.update_timer.timeout.connect(self.check_for_updates)
+        self.update_timer.start()
+        if os.environ.get("ACROSS32_DISABLE_UPDATE_CHECK") != "1":
+            QTimer.singleShot(300, self.check_for_updates)
 
 
     def setup_tray(self):
@@ -581,8 +611,70 @@ class Launcher(QMainWindow):
             QMessageBox.warning(self, "Automatikus indítás", str(exc))
         self.update_autostart_status()
 
+    def manual_refresh(self):
+        self.refresh()
+        self.check_for_updates()
+
+    def check_for_updates(self):
+        if self.update_process is not None or os.environ.get("ACROSS32_DISABLE_UPDATE_CHECK") == "1":
+            return
+        worker = QProcess(self)
+        worker.setProgram(sys.executable)
+        worker.setArguments([
+            "-u", str(Path(__file__).resolve().parent / "update_checker.py"), "--scan"
+        ])
+        worker.readyReadStandardOutput.connect(self.read_update_results)
+        worker.finished.connect(self.update_scan_finished)
+        worker.errorOccurred.connect(self.update_scan_error)
+        self.update_process = worker
+        self._update_output = b""
+        worker.start()
+
+    def read_update_results(self):
+        worker = self.update_process
+        if worker is None:
+            return
+        self._update_output += bytes(worker.readAllStandardOutput())
+        modified = False
+        while b"\n" in self._update_output:
+            line, self._update_output = self._update_output.split(b"\n", 1)
+            try:
+                record = json.loads(line)
+            except (UnicodeDecodeError, ValueError):
+                continue
+            key = record.get("key")
+            if (record.get("ok") is True and key in {app.key for app in APPS}
+                    and isinstance(record.get("remote_version"), str)
+                    and isinstance(record.get("remote_sha"), str)):
+                self.update_records[key] = {
+                    "remote_version": record["remote_version"],
+                    "remote_sha": record["remote_sha"],
+                }
+                modified = True
+        if modified:
+            self.refresh()
+
+    def update_scan_finished(self, _code, _status):
+        self.read_update_results()
+        worker = self.update_process
+        self.update_process = None
+        if worker:
+            worker.deleteLater()
+
+    def update_scan_error(self, _error):
+        worker = self.update_process
+        if worker and worker.state() == QProcess.ProcessState.NotRunning:
+            # Do not erase the last known update warning on an offline/error
+            # scan. The remote-version cache remains available at next start.
+            self.update_process = None
+            worker.deleteLater()
+
     def closeEvent(self, event):
         # Closing X is a REAL exit, never an implicit minimize-to-tray.
+        if self.update_process:
+            self.update_process.kill()
+            self.update_process.waitForFinished(1200)
+            self.update_process = None
         for dlg in list(self.histories):
             dlg.close()
         if self.tray:
@@ -704,7 +796,15 @@ class Launcher(QMainWindow):
             shown.append(spec)
 
         for i, spec in enumerate(shown):
-            card = AppCard(spec, state[spec.key], spec.key in self.running, self)
+            latest = self.update_records.get(spec.key, {})
+            show_update = bool(state[spec.key] and
+                               update_available(spec, version(spec), latest))
+            card = AppCard(
+                spec, state[spec.key], spec.key in self.running, self,
+                needs_update=show_update,
+                latest_version=latest.get("remote_version") or
+                               ("Git " + latest.get("remote_sha", "")[:8]),
+            )
             self.grid.addWidget(card, i // self._columns, i % self._columns)
         for column in range(3):
             self.grid.setColumnStretch(column, 1 if column < self._columns else 0)
@@ -761,6 +861,8 @@ class Launcher(QMainWindow):
     def operation_finished(self, key: str, label: str, code: int) -> None:
         self.running.pop(key, None)
         self.refresh()
+        if code == 0:
+            self.check_for_updates()
         if code != 0:
             QMessageBox.warning(self, "Sikertelen művelet",
                                 f"{label}: a telepítés vagy frissítés nem sikerült. "
