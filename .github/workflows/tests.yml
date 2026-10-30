@@ -20,11 +20,12 @@ jobs:
           python -m pip install 'PySide6-Essentials>=6.7,<7'
       - name: Compile and validate shell scripts
         run: |
-          python -m compileall -q app_manager.py launcher.py app_icons.py release_history.py github_backup.py autostart.py version_info.py tests
+          python -m compileall -q app_manager.py launcher.py app_icons.py release_history.py github_backup.py autostart.py version_info.py update_checker.py tests
           bash -n install.sh run.sh
       - name: Unit tests
         env:
           QT_QPA_PLATFORM: offscreen
+          ACROSS32_DISABLE_UPDATE_CHECK: '1'
         run: python -m unittest discover -s tests -v
       - name: Offscreen UI smoke
         env:
@@ -39,9 +40,9 @@ jobs:
           assert len(APPS) == 8
           assert window.grid.count() == len(APPS)
           assert "Across32" in window.windowTitle()
-          assert "v1.3.0" in window.windowTitle()
+          assert "v1.4.0" in window.windowTitle()
           assert "Git" in window.windowTitle()
-          assert "v1.3.0" in window.build_badge.text()
+          assert "v1.4.0" in window.build_badge.text()
           assert window.backup_button.text().endswith("GITHUB BACKUP")
           assert window.autostart_checkbox.isVisible() is False  # parent window not shown
           window.show()
@@ -52,6 +53,15 @@ jobs:
           assert any("Csomagkezelő" in card.findChild(__import__("PySide6.QtWidgets", fromlist=["QLabel"]).QLabel, "appName").text() for card in cards), "Csomagkezelő must have its own card"
           assert sum(bool(card.findChildren(QPushButton, "appIcon")) for card in cards) == len(APPS)
           assert sum(bool(card.findChildren(QPushButton, "history")) for card in cards) == len(APPS)
+          assert window.update_process is None
+          from update_checker import update_available
+          from app_manager import BY_KEY
+          window.update_records["laser"] = {"remote_version": "999.0.0", "remote_sha": ""}
+          window.refresh()
+          cards = [window.grid.itemAt(i).widget() for i in range(window.grid.count())]
+          assert sum(bool(card.findChildren(__import__("PySide6.QtWidgets", fromlist=["QLabel"]).QLabel, "updateAvailable")) for card in cards) == 1
+          window.update_records["laser"] = {"remote_version": "0.0.0", "remote_sha": ""}
+          window.refresh()
           window.minimize_to_tray()
           window.restore_from_tray()
           window.close()
