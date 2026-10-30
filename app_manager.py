@@ -215,13 +215,59 @@ def installed(app: App) -> bool:
     return bool(working_desktop(app)) or is_ready(app, source_dir(app))
 
 
+def parse_version_source(app: App, raw: str) -> str:
+    """Extract the real declared release version without importing app code."""
+    if app.key in ("Movie_database", "tankolas"):
+        # Plain VERSION files; these are not Python source.
+        return raw.strip().splitlines()[0].strip()[:36] if raw.strip() else "—"
+    variable = {
+        "Munkak_eladasok": "UI_VERSION",
+        "csomagkezelo": "__version__",
+        "laser": "VERSION",
+        "relief": "version",
+        "gas": "version",
+    }.get(app.key)
+    if variable is None:
+        return "—"
+    match = re.search(
+        rf'(?m)^\s*{re.escape(variable)}\s*=\s*["\x27]([^"\x27\r\n]+)["\x27]',
+        raw,
+    )
+    return match.group(1).strip() if match else "—"
+
+
+def installed_munkak_dir(app: App) -> Path | None:
+    """The Munkák installer copies main.py into its KDE installation folder.
+
+    The editable Git checkout and the actually RUNNING installed copy can have
+    different versions; prefer the actual desktop-launched main.py.
+    """
+    if app.key != "Munkak_eladasok":
+        return None
+    entry = working_desktop(app)
+    if not entry:
+        return None
+    _, argv, cwd = entry
+    for arg in argv:
+        executable = Path(arg).expanduser()
+        if not executable.is_absolute():
+            continue
+        if executable.name in ("run.sh", "main.py", "compact_launcher.py"):
+            candidate = executable.parent
+            if (candidate / "main.py").is_file():
+                return candidate
+    if cwd and (cwd / "main.py").is_file():
+        return cwd
+    return None
+
+
 def version(app: App) -> str:
-    # The player project currently has no explicit VERSION/pyproject version.
-    # Display its real local Git revision, not an invented release number.
     if app.key == "player":
+        # Player has no declared version; show a verified local Git revision.
         commit = revision(app)
         return f"Git {commit}" if commit else "—"
-    folder = source_dir(app)
+    folder = (installed_munkak_dir(app) if app.key == "Munkak_eladasok"
+              else None) or source_dir(app)
     candidate = folder / app.version_file
     if app.key == "Movie_database" and not candidate.exists():
         candidate = data_home() / "filmadatbazis-app" / "VERSION"
@@ -229,18 +275,8 @@ def version(app: App) -> str:
         raw = candidate.read_text(encoding="utf-8")
     except OSError:
         return "—"
-    if app.key in ("Movie_database", "tankolas"):
-        return raw.strip()[:24]
-    if app.key == "csomagkezelo":
-        match = re.search(r'(?m)^__version__\s*=\s*["\']([^"\']+)["\']', raw)
-        return match.group(1) if match else "—"
-    if app.key in ("relief", "gas"):
-        match = re.search(r"(?m)^version\s*=\s*['\"]([^'\"]+)['\"]", raw)
-    elif app.key == "laser":
-        match = re.search(r"(?m)^VERSION\s*=\s*['\"]([^'\"]+)['\"]", raw)
-    else:
-        match = re.search(r"(?m)^UI_VERSION\s*=\s*['\"]([^'\"]+)['\"]", raw)
-    return match.group(1) if match else "—"
+    return parse_version_source(app, raw)
+
 
 
 def revision(app: App) -> str:
