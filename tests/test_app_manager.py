@@ -72,6 +72,36 @@ class ManagerTests(unittest.TestCase):
         )
         self.assertEqual(m.version(app), "0.8.45")
 
+    def test_munkak_version_from_actual_kde_installed_copy(self):
+        app = m.BY_KEY["Munkak_eladasok"]
+        # Installer copies main.py from its Git clone into a separate installed
+        # directory. Never show the old Git checkout version for the running app.
+        checkout = m.managed_dir() / app.key
+        checkout.mkdir(parents=True)
+        (checkout / "main.py").write_text('UI_VERSION = "2026.10.20-90"\n')
+        installed_root = self.home / "installed Munkak"
+        installed_root.mkdir()
+        (installed_root / "main.py").write_text('UI_VERSION = "2026.10.24-95"\n')
+        launcher = installed_root / "run.sh"
+        launcher.write_text("#!/bin/sh\n")
+        launcher.chmod(0o755)
+        desktop = m.applications_dir() / "cnc-eladasok-v14.desktop"
+        desktop.parent.mkdir(parents=True, exist_ok=True)
+        desktop.write_text(
+            "[Desktop Entry]\nType=Application\n"
+            'Exec="' + str(launcher) + '"\n',
+            encoding="utf-8",
+        )
+        self.assertEqual(m.installed_munkak_dir(app), installed_root)
+        self.assertEqual(m.version(app), "2026.10.24-95")
+
+    def test_munkak_version_from_checkout_when_no_kde_copy(self):
+        app = m.BY_KEY["Munkak_eladasok"]
+        clone = m.managed_dir() / app.key
+        clone.mkdir(parents=True)
+        (clone / "main.py").write_text('UI_VERSION = "2026.10.24-95"\n')
+        self.assertEqual(m.version(app), "2026.10.24-95")
+
     def test_missing_app_is_not_installed(self):
         with patch.object(m, "working_desktop", return_value=None):
             self.assertFalse(m.installed(m.BY_KEY["gas"]))
