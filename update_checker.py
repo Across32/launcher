@@ -108,13 +108,44 @@ def update_available(app: App, local: str, record: dict) -> bool:
 
 
 def api_json(endpoint: str) -> object:
-    if not shutil.which("gh"):
-        raise RuntimeError("GitHub CLI nincs telepítve vagy nem található.")
-    result = subprocess.run(
-        ["gh", "api", endpoint], capture_output=True, text=True,
-        check=True, timeout=22,
-    )
-    return json.loads(result.stdout)
+    """Use the user's authenticated GitHub CLI; surface actionable failures."""
+    executable = shutil.which("gh")
+    if not executable:
+        for candidate in (
+            Path.home() / ".local/bin/gh",
+            Path("/usr/bin/gh"),
+            Path("/usr/local/bin/gh"),
+        ):
+            if candidate.is_file() and os.access(candidate, os.X_OK):
+                executable = str(candidate)
+                break
+    if not executable:
+        raise RuntimeError(
+            "A GitHub CLI (gh) nem található. Telepítés: sudo pacman -S github-cli"
+        )
+    try:
+        result = subprocess.run(
+            [executable, "api", endpoint], capture_output=True, text=True,
+            check=False, timeout=25,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError("GitHub API időtúllépés (25 másodperc).") from exc
+    except OSError as exc:
+        raise RuntimeError(f"GitHub CLI indítási hiba: {exc}") from exc
+    if result.returncode:
+        # gh normally reports 401/403/404 and login details on stderr; until
+        # now that error was silently discarded by the GUI.
+        detail = (result.stderr or result.stdout or "").strip()
+        detail = " ".join(detail.splitlines())[:280]
+        if not detail:
+            detail = f"GitHub CLI hibakód: {result.returncode}"
+        raise RuntimeError(
+            f"{detail} — Ellenőrizd: gh auth status"
+        )
+    try:
+        return json.loads(result.stdout)
+    except (ValueError, TypeError) as exc:
+        raise RuntimeError("A GitHub CLI nem érvényes JSON-választ adott.") from exc
 
 
 def fetch_remote(app: App) -> dict:
@@ -155,7 +186,7 @@ def scan() -> int:
                     result = {"key": app.key, **latest, "ok": True}
                 except (OSError, ValueError, TypeError, RuntimeError,
                         subprocess.SubprocessError) as exc:
-                    result = {"key": app.key, "ok": False, "error": str(exc)[:200]}
+                    result = {"key": app.key, "ok": False, "error": str(exc)[:320]}
                 print(json.dumps(result, ensure_ascii=False), flush=True)
     except KeyboardInterrupt:
         return 130
