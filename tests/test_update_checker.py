@@ -85,6 +85,31 @@ class RemoteUpdateTests(unittest.TestCase):
         self.assertFalse(u.update_available(BY_KEY["Munkak_eladasok"], "—",
                              {"remote_version": "2026.10.25-96", "remote_sha": ""}))
 
+    def test_github_auth_errors_are_reported_with_real_details(self):
+        import subprocess
+        sample = subprocess.CompletedProcess(
+            ["gh", "api", "repos/Across32/laser"], 1,
+            stdout="", stderr="HTTP 401: Requires authentication\n"
+        )
+        with patch.object(u.shutil, "which", return_value="/usr/bin/gh"), \
+             patch.object(u.subprocess, "run", return_value=sample):
+            with self.assertRaisesRegex(RuntimeError, "HTTP 401"):
+                u.api_json("repos/Across32/laser")
+
+    def test_github_cli_missing_has_actionable_message(self):
+        with patch.object(u.shutil, "which", return_value=None), \
+             patch.object(u.Path, "is_file", return_value=False):
+            with self.assertRaisesRegex(RuntimeError, "sudo pacman -S github-cli"):
+                u.api_json("repos/Across32/laser")
+
+    def test_github_timeout_is_explained(self):
+        import subprocess
+        with patch.object(u.shutil, "which", return_value="/usr/bin/gh"), \
+             patch.object(u.subprocess, "run",
+                          side_effect=subprocess.TimeoutExpired(["gh", "api"], 25)):
+            with self.assertRaisesRegex(RuntimeError, "időtúllépés"):
+                u.api_json("repos/Across32/laser")
+
     def test_no_remote_overwrite_if_private_github_unavailable(self):
         original = {"laser": {"remote_version": "0.8.50", "remote_sha": ""}}
         u.save_cache(original, self.cache)
