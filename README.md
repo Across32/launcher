@@ -38,6 +38,36 @@ git pull --ff-only
 bash install.sh
 ```
 
+## GitHub-verziófigyelés és hibajelzés – v1.4.1
+
+A fejléc alatti **GitHub verzióellenőrzés** sor azonnal jelzi, ha
+a háttérben indul a repók vizsgálata, hány repó válaszolt és hány
+új kiadás érhető el. A felső **↻** gombbal indított kézi ellenőrzés
+**mindig megmutatja a nyolc alkalmazás eredményét**: az aktuális helyi
+verziót, a GitHubon látott verziót vagy a lekérési hibát.
+Ha éppen automatikus ellenőrzés zajlik, a kézi lekérés nem indul
+duplán, hanem a folyamat végén megjeleníti annak részletes eredményét.
+
+A GitHub CLI már nem rejti el a hitelesítési, HTTP- és hálózati
+hibákat. A hibaszövegben szerepelhet például az
+\`HTTP 401\`, \`HTTP 403\`, \`gh auth status\`, vagy a
+\`sudo pacman -S github-cli\` telepítési javaslat.
+A vizsgálat legfeljebb 120 másodpercig tart; hiba esetén a
+korábban ismert frissítésjelzés **nem törlődik**.
+
+Ha nem jelenik meg a várható piros „FRISSÍTÉS ELÉRHETŐ” felirat,
+először nyomd meg a **↻** gombot, majd nézd meg a
+részletes nyolcalkalmazásos eredménylistát. A privát repo
+elérését külön ellenőrizheted terminálból:
+
+~~~bash
+gh auth status
+gh api repos/Across32/laser --jq '.full_name'
+~~~
+
+A helyi és a távoli verziót **továbbra is numerikusan**
+hasonlítjuk össze; a távoli lekérési hiba nem adhat hamis frissítésjelzést.
+
 ## Új verzió figyelése – Launcher v1.4.0
 
 A Launcher induláskor, a fejléc **↻** frissítőgombjára kattintva,
