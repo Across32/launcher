@@ -11,10 +11,10 @@ import sys
 import webbrowser
 
 from PySide6.QtCore import Qt, QSize, QProcess, QTimer, QUrl
-from PySide6.QtGui import QDesktopServices, QIcon, QPixmap
+from PySide6.QtGui import QDesktopServices, QIcon, QPixmap, QColor, QPalette
 from PySide6.QtWidgets import (
     QApplication, QCheckBox, QComboBox, QDialog, QFileDialog, QFrame, QGridLayout,
-    QHBoxLayout, QLabel, QLineEdit, QMainWindow, QMenu, QMessageBox,
+    QHBoxLayout, QLabel, QLineEdit, QMainWindow, QMenu, QMessageBox, QPlainTextEdit,
     QPushButton, QScrollArea, QSizePolicy, QSystemTrayIcon, QVBoxLayout, QWidget,
 )
 
@@ -292,6 +292,110 @@ class AppCard(QFrame):
         history.clicked.connect(lambda: parent.show_history(spec))
         outer.addWidget(history)
 
+
+
+class UpdateReportDialog(QDialog):
+    """Readable, scrollable, selectable report, independent of KDE theme.
+
+    QMessageBox inherits the native theme's dark QLabel text on some Plasma
+    setups even when our application background is dark. Use an explicitly
+    themed plain-text view instead of a QMessageBox.
+    """
+
+    def __init__(self, report: str, *, has_errors: bool = False, parent=None):
+        super().__init__(parent)
+        self.setObjectName("updateReportDialog")
+        self.setWindowTitle("GitHub frissítésellenőrzés")
+        self.setModal(True)
+        self.resize(780, 490)
+        self.setMinimumSize(530, 340)
+        self.setStyleSheet("""
+            QDialog#updateReportDialog {
+                background-color: #203044;
+                color: #eef6ff;
+            }
+            QLabel#updateReportHeading {
+                color: #f2f8ff;
+                font-size: 17px;
+                font-weight: 800;
+                background: transparent;
+            }
+            QLabel#updateReportSubheading {
+                color: #bbd1e7;
+                font-size: 12px;
+                background: transparent;
+            }
+            QPlainTextEdit#updateReportText {
+                background-color: #18283a;
+                color: #eef6ff;
+                selection-color: #ffffff;
+                selection-background-color: #466f98;
+                border: 1px solid #58748f;
+                border-radius: 8px;
+                font-size: 13px;
+                padding: 12px;
+            }
+            QPushButton#updateReportClose, QPushButton#updateReportCopy {
+                background-color: #41668b;
+                color: #f2f8ff;
+                border: 1px solid #7394b4;
+                border-radius: 6px;
+                padding: 8px 15px;
+                min-height: 29px;
+                font-weight: 750;
+            }
+            QPushButton#updateReportClose:hover, QPushButton#updateReportCopy:hover {
+                background-color: #527ba3;
+            }
+        """)
+        palette = self.palette()
+        palette.setColor(QPalette.ColorRole.Window, QColor("#203044"))
+        palette.setColor(QPalette.ColorRole.WindowText, QColor("#eef6ff"))
+        self.setPalette(palette)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 19, 20, 18)
+        layout.setSpacing(12)
+        self.heading = QLabel(
+            "Az ellenőrzés hibával zárult" if has_errors
+            else "GitHub frissítésellenőrzés eredménye"
+        )
+        self.heading.setObjectName("updateReportHeading")
+        layout.addWidget(self.heading)
+
+        subtitle = QLabel(
+            "A helyi és távoli verziók összehasonlítása. "
+            "A szöveg kijelölhető és másolható."
+        )
+        subtitle.setObjectName("updateReportSubheading")
+        subtitle.setWordWrap(True)
+        layout.addWidget(subtitle)
+
+        self.report_text = QPlainTextEdit()
+        self.report_text.setObjectName("updateReportText")
+        self.report_text.setReadOnly(True)
+        self.report_text.setPlainText(report)
+        self.report_text.setLineWrapMode(QPlainTextEdit.LineWrapMode.WidgetWidth)
+        text_palette = self.report_text.palette()
+        text_palette.setColor(QPalette.ColorRole.Text, QColor("#eef6ff"))
+        text_palette.setColor(QPalette.ColorRole.Base, QColor("#18283a"))
+        self.report_text.setPalette(text_palette)
+        layout.addWidget(self.report_text, 1)
+
+        buttons = QHBoxLayout()
+        buttons.addStretch()
+        self.copy_button = QPushButton("JELENTÉS MÁSOLÁSA")
+        self.copy_button.setObjectName("updateReportCopy")
+        self.copy_button.clicked.connect(
+            lambda: QApplication.clipboard().setText(self.report_text.toPlainText())
+        )
+        buttons.addWidget(self.copy_button)
+        close_button = QPushButton("BEZÁRÁS")
+        close_button.setObjectName("updateReportClose")
+        close_button.clicked.connect(self.accept)
+        close_button.setDefault(True)
+        buttons.addWidget(close_button)
+        layout.addLayout(buttons)
 
 
 class HistoryDialog(QDialog):
@@ -787,10 +891,13 @@ class Launcher(QMainWindow):
         worker.deleteLater()
         if self._manual_update_summary:
             self._manual_update_summary = False
-            if errors or self._scan_issue or len(self._scan_results) != len(APPS):
-                QMessageBox.warning(self, "GitHub frissítésellenőrzés – hiba", report)
-            else:
-                QMessageBox.information(self, "GitHub frissítésellenőrzés", report)
+            dialog = UpdateReportDialog(
+                report,
+                has_errors=bool(errors or self._scan_issue
+                                or len(self._scan_results) != len(APPS)),
+                parent=self,
+            )
+            dialog.exec()
 
     def update_scan_error(self, _error):
         worker = self.update_process
