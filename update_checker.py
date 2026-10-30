@@ -153,7 +153,7 @@ def scan() -> int:
                     }
                     save_cache(records)
                     result = {"key": app.key, **latest, "ok": True}
-                except (OSError, ValueError, TypeError,
+                except (OSError, ValueError, TypeError, RuntimeError,
                         subprocess.SubprocessError) as exc:
                     result = {"key": app.key, "ok": False, "error": str(exc)[:200]}
                 print(json.dumps(result, ensure_ascii=False), flush=True)
