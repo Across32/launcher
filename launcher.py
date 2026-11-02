@@ -65,20 +65,20 @@ QFrame#card {
     border: 1px solid #40566e;
     border-radius: 13px;
 }
-QLabel#appName { color: #eff5fc; font-size: 20px; font-weight: 800; }
-QLabel#category { color: #b0c0d1; font-size: 12px; }
-QLabel#description { color: #c7d5e3; font-size: 13px; }
-QLabel#status { font-size: 11px; font-weight: 700; }
+QLabel#appName { color: #eff5fc; font-size: 17px; font-weight: 800; }
+QLabel#category { color: #b0c0d1; font-size: 11px; }
+QLabel#description { color: #c7d5e3; font-size: 12px; }
+QLabel#status { font-size: 10px; font-weight: 700; }
 QLabel#updateAvailable {
-    font-size: 11px; font-weight: 800; color: #ff747b;
+    font-size: 10px; font-weight: 800; color: #ff747b;
 }
-QLabel#version { color: #95abc1; font-size: 11px; }
+QLabel#version { color: #95abc1; font-size: 10px; }
 QLineEdit, QComboBox {
     background: #324458;
     color: #f4f8fe;
     border: 1px solid #536b83;
     border-radius: 6px;
-    min-height: 35px;
+    min-height: 29px;
     padding: 2px 9px;
     selection-background-color: #567b9f;
 }
@@ -86,8 +86,8 @@ QPushButton {
     border-radius: 6px;
     font-size: 11px;
     font-weight: 800;
-    min-height: 34px;
-    padding: 0px 11px;
+    min-height: 29px;
+    padding: 0px 9px;
 }
 QPushButton#primary {
     color: #fff;
@@ -180,17 +180,27 @@ QMessageBox, QFileDialog { background: #243449; color: #e7eef6; }
 
 
 
+def responsive_columns(width: int) -> int:
+    """Four columns for ordinary desktops: eight applications in two rows."""
+    if width >= 1120:
+        return 4
+    if width >= 870:
+        return 3
+    return 2
+
+
 class AppCard(QFrame):
     def __init__(self, spec: App, active: bool, busy: bool, parent: "Launcher",
                  needs_update: bool = False, latest_version: str = ""):
         super().__init__()
         self.setObjectName("card")
-        self.setMinimumWidth(310)
-        self.setMinimumHeight(323)
-        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.setMinimumWidth(250)
+        self.setMinimumHeight(235)
+        self.setMaximumHeight(257)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         outer = QVBoxLayout(self)
-        outer.setContentsMargins(18, 14, 18, 16)
-        outer.setSpacing(11)
+        outer.setContentsMargins(13, 10, 13, 10)
+        outer.setSpacing(6)
 
         top = QHBoxLayout()
         tag = QLabel(spec.category.upper())
@@ -206,7 +216,7 @@ class AppCard(QFrame):
         title_row = QHBoxLayout()
         icon = QPushButton(spec.letter)
         icon.setObjectName("appIcon")
-        icon.setFixedSize(55, 55)
+        icon.setFixedSize(44, 44)
         icon.setCursor(Qt.CursorShape.PointingHandCursor)
         icon.setToolTip("Kattints az ikon cseréjéhez. Jobb kattintás: alaphelyzet.")
         icon.setStyleSheet(f"QPushButton#appIcon {{ background: {spec.color}; }}")
@@ -214,7 +224,7 @@ class AppCard(QFrame):
         if not chosen_icon.isNull():
             icon.setText("")
             icon.setIcon(chosen_icon)
-            icon.setIconSize(QSize(43, 43))
+            icon.setIconSize(QSize(36, 36))
         icon.clicked.connect(lambda: parent.choose_icon(spec))
         icon.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         icon.customContextMenuRequested.connect(lambda _pos: parent.reset_icon(spec))
@@ -223,6 +233,7 @@ class AppCard(QFrame):
         text_col.setSpacing(1)
         name = QLabel(spec.title)
         name.setObjectName("appName")
+        name.setWordWrap(True)
         sub = QLabel(spec.category)
         sub.setObjectName("category")
         text_col.addWidget(name)
@@ -233,7 +244,8 @@ class AppCard(QFrame):
         description = QLabel(spec.description)
         description.setObjectName("description")
         description.setWordWrap(True)
-        description.setMinimumHeight(40)
+        description.setMinimumHeight(28)
+        description.setMaximumHeight(34)
         outer.addWidget(description)
 
         badge = QLabel("●  FOLYAMATBAN" if busy else
@@ -242,7 +254,7 @@ class AppCard(QFrame):
         badge.setStyleSheet("color: #ffd18c;" if busy else
                             ("color: #80d5b3;" if active else "color: #a6b5c5;"))
         status_row = QHBoxLayout()
-        status_row.setSpacing(12)
+        status_row.setSpacing(7)
         status_row.addWidget(badge)
         if active and needs_update:
             warning = QLabel("●  FRISSÍTÉS ELÉRHETŐ")
@@ -263,11 +275,12 @@ class AppCard(QFrame):
             detail += f"   •   Git: {short_sha}"
         label = QLabel(detail)
         label.setObjectName("version")
+        label.setToolTip(detail)
         outer.addWidget(label)
         outer.addStretch(1)
 
         actions = QHBoxLayout()
-        actions.setSpacing(8)
+        actions.setSpacing(6)
         if active:
             launch = QPushButton("MEGNYITÁS")
             launch.setObjectName("primary")
@@ -499,8 +512,20 @@ class Launcher(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle(title_text())
-        self.setMinimumSize(940, 640)
-        self.resize(1280, 795)
+        self.setMinimumSize(810, 570)
+        # Start almost as large as KDE's available work area, without
+        # fullscreen mode or overlapping the panel/taskbar. This fits two
+        # rows of four compact cards at ordinary desktop resolutions.
+        screen = QApplication.primaryScreen()
+        if screen:
+            work = screen.availableGeometry()
+            w = min(work.width(), max(810, int(work.width() * 0.96)))
+            h = min(work.height(), max(570, int(work.height() * 0.97)))
+            self.resize(w, h)
+            self.move(work.x() + (work.width() - w) // 2,
+                      work.y() + (work.height() - h) // 2)
+        else:
+            self.resize(1450, 890)
         self.running: dict[str, QProcess] = {}
         self.backup_process = None
         self.histories = []
@@ -526,8 +551,8 @@ class Launcher(QMainWindow):
         header = QFrame()
         header.setObjectName("header")
         header_layout = QVBoxLayout(header)
-        header_layout.setContentsMargins(27, 18, 27, 20)
-        header_layout.setSpacing(14)
+        header_layout.setContentsMargins(20, 10, 20, 10)
+        header_layout.setSpacing(7)
 
         head = QHBoxLayout()
         brand = QLabel("ACROSS32")
@@ -555,7 +580,7 @@ class Launcher(QMainWindow):
         head.addWidget(tray_button)
         refresh = QPushButton("↻")
         refresh.setObjectName("refresh")
-        refresh.setFixedSize(40, 36)
+        refresh.setFixedSize(38, 32)
         refresh.setToolTip("Telepített alkalmazások újraellenőrzése")
         refresh.clicked.connect(self.manual_refresh)
         head.addWidget(refresh)
@@ -569,12 +594,12 @@ class Launcher(QMainWindow):
         self.filter = QComboBox()
         self.filter.addItems(["Összes alkalmazás", "Telepítve", "Nincs telepítve"])
         self.filter.currentIndexChanged.connect(self.refresh)
-        self.filter.setFixedWidth(190)
+        self.filter.setFixedWidth(185)
         tools.addWidget(self.filter)
         self.search = QLineEdit()
         self.search.setPlaceholderText("Alkalmazások keresése")
         self.search.setClearButtonEnabled(True)
-        self.search.setFixedWidth(245)
+        self.search.setFixedWidth(235)
         self.search.textChanged.connect(self.refresh)
         tools.addWidget(self.search)
 
@@ -584,7 +609,7 @@ class Launcher(QMainWindow):
         startup_box = QFrame()
         startup_box.setObjectName("startupSettings")
         startup_row = QHBoxLayout(startup_box)
-        startup_row.setContentsMargins(15, 7, 15, 7)
+        startup_row.setContentsMargins(12, 3, 12, 3)
         self.autostart_checkbox = QCheckBox("INDÍTÁS A RENDSZERREL · TÁLCÁRA")
         self.autostart_checkbox.setObjectName("autostart")
         self.autostart_checkbox.setToolTip(
@@ -617,9 +642,9 @@ class Launcher(QMainWindow):
         self.grid_widget = QWidget()
         self.grid_widget.setObjectName("gridWidget")
         self.grid = QGridLayout(self.grid_widget)
-        self.grid.setContentsMargins(24, 22, 24, 24)
-        self.grid.setHorizontalSpacing(16)
-        self.grid.setVerticalSpacing(17)
+        self.grid.setContentsMargins(16, 10, 16, 10)
+        self.grid.setHorizontalSpacing(11)
+        self.grid.setVerticalSpacing(10)
         self.scroll.setWidget(self.grid_widget)
         layout.addWidget(self.scroll, 1)
 
@@ -628,7 +653,7 @@ class Launcher(QMainWindow):
             "A hitelesítéshez és a rendszerjogosultságokhoz Konsole ablak nyílik meg.  "
         )
         self.footer.setObjectName("footer")
-        self.footer.setContentsMargins(24, 10, 16, 12)
+        self.footer.setContentsMargins(20, 5, 14, 6)
         layout.addWidget(self.footer)
         self.timer = QTimer(self)
         self.timer.setInterval(3500)
@@ -1010,6 +1035,15 @@ class Launcher(QMainWindow):
             if getattr(self, "_columns", None) != col_count:
                 self.refresh()
 
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        # Rebuild cards only when crossing a column breakpoint; resizing
+        # within the same layout must not reload every installed app.
+        if (hasattr(self, "grid")
+                and hasattr(self, "_columns")
+                and responsive_columns(self.width()) != self._columns):
+            QTimer.singleShot(0, self.refresh)
+
     def refresh_if_running(self) -> None:
         if self.running:
             self.refresh()
@@ -1017,7 +1051,7 @@ class Launcher(QMainWindow):
     def refresh(self, *_args) -> None:
         if not hasattr(self, "grid"):
             return
-        self._columns = 2 if self.width() < 1090 else 3
+        self._columns = responsive_columns(self.width())
         while self.grid.count():
             item = self.grid.takeAt(0)
             if item.widget():
@@ -1048,7 +1082,7 @@ class Launcher(QMainWindow):
                                ("Git " + latest.get("remote_sha", "")[:8]),
             )
             self.grid.addWidget(card, i // self._columns, i % self._columns)
-        for column in range(3):
+        for column in range(4):
             self.grid.setColumnStretch(column, 1 if column < self._columns else 0)
         self.grid.setRowStretch((len(shown) + self._columns - 1) // self._columns, 1)
         if not shown:
