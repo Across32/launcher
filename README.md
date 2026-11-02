@@ -15,6 +15,23 @@ valamint a **Telepítés / Megnyitás / Frissítés** gombokat.
 | Across Player – Lejátszó | `player` | Magyar nyelvű 4K/Full HD videólejátszó (mpv, feliratok, hangsávok) |
 | Csomagkezelő | `csomagkezelo` | Pacman, AUR/külső csomagok és árva függőségek áttekintése és törlése |
 
+## Kompakt, görgetés nélküli áttekintés – v1.4.3
+
+A Launcher kézi megnyitásakor az ablak az elérhető KDE munkaterület
+közel teljes méretét használja (az asztali panelt szabadon hagyja),
+de nem vált kötelező teljes képernyős módba. A nyolc alkalmazáskártya
+kisebb ikont, alacsonyabb gombokat és kevesebb belső térközt kapott.
+
+- **Legalább 1120 px széles ablakban:** 4 oszlop, 2 sor, a nyolc alkalmazás
+  rendes asztali felbontás mellett görgetés nélkül áttekinthető.
+- **870–1119 px:** 3 oszlop; **870 px alatt:** 2 oszlop. Ilyenkor
+  szükség szerint görgethető marad a nézet, hogy minden gomb és szöveg
+  elérhető legyen.
+- Az ablak átméretezésekor az oszlopszám automatikusan igazodik, de nem
+  építi újra feleslegesen a kártyákat minden egyes pixelváltozásnál.
+- A háttér GitHub-verziófigyelés, telepítés, frissítési előzmények,
+  ikoncsere, mentés és tálcára indulás változatlanul működik.
+
 ## 1. A launcher telepítése
 
 Az EndeavourOS Terminál / Konsole alkalmazásában:
