@@ -1053,10 +1053,21 @@ class Launcher(QMainWindow):
         if not hasattr(self, "grid"):
             return
         self._columns = responsive_columns(self.width())
-        while self.grid.count():
-            item = self.grid.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
+        # Qt's QScrollArea preserves the old widget minimum/size hint after
+        # reducing a 4-row grid to 2 rows; it can leave a 990px scroll
+        # region even though the visible cards occupy only about 520px.
+        # A fresh content widget on each existing card refresh avoids stale
+        # row sizing and restores true no-scroll desktop behavior.
+        previous = self.scroll.takeWidget()
+        self.grid_widget = QWidget()
+        self.grid_widget.setObjectName("gridWidget")
+        self.grid = QGridLayout(self.grid_widget)
+        self.grid.setContentsMargins(16, 10, 16, 10)
+        self.grid.setHorizontalSpacing(11)
+        self.grid.setVerticalSpacing(10)
+        self.grid.setAlignment(Qt.AlignmentFlag.AlignTop)
+        if previous is not None:
+            previous.deleteLater()
         query = self.search.text().casefold().strip()
         state = {spec.key: installed(spec) for spec in APPS}
         total = sum(state.values())
@@ -1072,12 +1083,6 @@ class Launcher(QMainWindow):
                 continue
             shown.append(spec)
 
-        # Qt preserves row stretch factors after removing old widgets.
-        # The previous 3-row grid left an empty stretched row behind,
-        # making the scroll area ~990 px high even with two 235 px rows.
-        for row in range(self.grid.rowCount() + 1):
-            self.grid.setRowStretch(row, 0)
-
         for i, spec in enumerate(shown):
             latest = self.update_records.get(spec.key, {})
             show_update = bool(state[spec.key] and
@@ -1091,6 +1096,7 @@ class Launcher(QMainWindow):
             self.grid.addWidget(card, i // self._columns, i % self._columns)
         for column in range(4):
             self.grid.setColumnStretch(column, 1 if column < self._columns else 0)
+        self.scroll.setWidget(self.grid_widget)
         if not shown:
             empty = QLabel("Nincs a feltételeknek megfelelő alkalmazás.")
             empty.setStyleSheet("color:#666;font-size:15px;")
