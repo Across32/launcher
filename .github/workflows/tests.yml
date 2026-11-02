@@ -60,6 +60,15 @@ jobs:
           app.processEvents()
           assert window._columns == 4, window._columns
           assert window.grid.itemAtPosition(1, 3) is not None
+          print("LAYOUT METRICS:",
+                "window", window.width(), window.height(),
+                "viewport", window.scroll.viewport().width(), window.scroll.viewport().height(),
+                "grid", window.grid_widget.size().width(), window.grid_widget.size().height(),
+                "scrollmax", window.scroll.verticalScrollBar().maximum(),
+                "header", window.centralWidget().layout().itemAt(0).widget().height(),
+                "footer", window.footer.height(),
+                "card heights", [window.grid.itemAt(i).widget().height() for i in range(8)],
+                flush=True)
           assert window.scroll.verticalScrollBar().maximum() == 0, (
               "All eight apps must fit without vertical scrolling on desktop"
           )
