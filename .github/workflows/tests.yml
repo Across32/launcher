@@ -52,6 +52,30 @@ jobs:
           window.show()
           app.processEvents()
           assert window.autostart_checkbox.isVisible(), "Setting must be visible in its own header row"
+          # Check real Qt layout geometry in isolation: eight cards should
+          # occupy two rows with NO vertical scrollbar on desktop sizes.
+          window.resize(1450, 870)
+          app.processEvents()
+          window.refresh()
+          app.processEvents()
+          assert window._columns == 4, window._columns
+          assert window.grid.itemAtPosition(1, 3) is not None
+          assert window.scroll.verticalScrollBar().maximum() == 0, (
+              "All eight apps must fit without vertical scrolling on desktop"
+          )
+          assert all(window.grid.itemAt(i).widget().maximumHeight() <= 260
+                     for i in range(8))
+          window.resize(1030, 800)
+          app.processEvents()
+          window.refresh()
+          assert window._columns == 3, window._columns
+          window.resize(840, 760)
+          app.processEvents()
+          window.refresh()
+          assert window._columns == 2, window._columns
+          window.resize(1450, 870)
+          app.processEvents()
+          window.refresh()
           from PySide6.QtWidgets import QPushButton
           cards = [window.grid.itemAt(i).widget() for i in range(window.grid.count())]
           assert any("Csomagkezelő" in card.findChild(__import__("PySide6.QtWidgets", fromlist=["QLabel"]).QLabel, "appName").text() for card in cards), "Csomagkezelő must have its own card"
